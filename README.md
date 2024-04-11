@@ -15,4 +15,4 @@ PriviChat revolutionizes the way we think about messaging apps by offering a dec
 This ensures your messages are securely encrypted and directly delivered to the recipient without passing through any centralized servers.
 
 ## Characterization Document 
-[An Internal Link](./Characterization%20Document%20-%20by%20Shai%20Michaeli.pdf)
+[Characterization Document ](./Characterization%20Document%20-%20by%20Shai%20Michaeli.pdf)
