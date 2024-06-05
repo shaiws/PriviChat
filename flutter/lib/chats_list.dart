@@ -4,8 +4,9 @@ import 'package:privichat_flutter/chat_screen.dart';
 
 class ChatsList extends StatefulWidget {
   final String userId;
+  final String nickname;
 
-  const ChatsList({super.key, required this.userId});
+  const ChatsList({super.key, required this.userId, required this.nickname});
 
   @override
   _ChatsListState createState() => _ChatsListState();
@@ -13,7 +14,7 @@ class ChatsList extends StatefulWidget {
 
 class _ChatsListState extends State<ChatsList> {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
-  List<String> _userIds = [];
+  List<Map<String, String>> _users = [];
   bool _isLoading = true;
 
   @override
@@ -25,17 +26,18 @@ class _ChatsListState extends State<ChatsList> {
   void setUpRealtimeListener() {
     firestore.collection('users').snapshots().listen(
       (snapshot) {
-        var userIds = <String>[];
+        var users = <Map<String, String>>[];
         for (var doc in snapshot.docs) {
           var data = doc.data();
           var fetchedUserId = data['userId'];
+          var nickname = data['nickname'];
           if (fetchedUserId != widget.userId) {
-            userIds.add(fetchedUserId);
+            users.add({'userId': fetchedUserId, 'nickname': nickname});
           }
         }
         if (mounted) {
           setState(() {
-            _userIds = userIds;
+            _users = users;
             _isLoading = false;
           });
         }
@@ -50,7 +52,6 @@ class _ChatsListState extends State<ChatsList> {
       appBar: AppBar(
         title: const Text('Chat List'),
         actions: const [
-          // Optionally add a logout icon or settings icon here
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Icon(Icons.account_circle),
@@ -63,23 +64,23 @@ class _ChatsListState extends State<ChatsList> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(8.0),
-                  child: Text('Your ID: ${widget.userId}',
+                  child: Text('Your ID: ${widget.nickname}',
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: _userIds.length,
+                    itemCount: _users.length,
                     itemBuilder: (context, index) {
                       return ListTile(
-                        title: Text('Chat with ${_userIds[index]}'),
+                        title: Text('Chat with ${_users[index]['nickname']}'),
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => ChatScreen(
                                 userId: widget.userId,
-                                otherUserId: _userIds[index],
+                                otherUserId: _users[index]['userId']!,
                               ),
                             ),
                           );

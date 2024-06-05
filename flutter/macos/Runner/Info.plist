@@ -28,5 +28,14 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+<string>This app needs access to the microphone to record audio.</string>
+<key>NSCameraUsageDescription</key>
+<string>This app needs access to the camera to record video.</string>
+<key>NSPhotoLibraryAddUsageDescription</key>
+<string>This app needs access to your photo library to save recordings.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>This app needs access to your photo library to select files.</string>
+
 </dict>
 </plist>

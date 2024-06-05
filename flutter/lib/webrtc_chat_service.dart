@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
@@ -15,6 +14,7 @@ class WebRTCChatService {
   late RTCDataChannel _dataChannel;
   Function(dynamic)? onMessageReceived;
   Function(bool)? onTypingIndicationReceived;
+  Uint8List _receivedFileBuffer = Uint8List(0);
 
   final configuration = <String, dynamic>{
     'iceServers': [
@@ -51,11 +51,12 @@ class WebRTCChatService {
     'sdpSemantics': 'unified-plan',
   };
 
-  WebRTCChatService(
-      {required this.remoteId,
-      required this.localId,
-      this.onMessageReceived,
-      this.onTypingIndicationReceived});
+  WebRTCChatService({
+    required this.remoteId,
+    required this.localId,
+    this.onMessageReceived,
+    this.onTypingIndicationReceived,
+  });
 
   Future<void> init() async {
     _peerConnection = await createPeerConnection(configuration);
@@ -63,80 +64,97 @@ class WebRTCChatService {
         await _peerConnection.createDataChannel("chat", RTCDataChannelInit());
     _peerConnection.onIceCandidate = _handleIceCandidate;
 
-    _dataChannel.onDataChannelState = (state) {
-      if (state == RTCDataChannelState.RTCDataChannelOpen) {
-        Fluttertoast.showToast(
-            msg: "P2P connection established!",
-            toastLength: Toast.LENGTH_SHORT,
-            gravity: ToastGravity.BOTTOM,
-            timeInSecForIosWeb: 1,
-            backgroundColor: Colors.green,
-            textColor: Colors.white,
-            fontSize: 16.0);
-      }
-    };
-
-    _dataChannel.onMessage = (RTCDataChannelMessage message) {
-      print("Message received: binary: ${message.isBinary}");
-      if (message.isBinary) {
-        final compressedData = message.binary;
-
-        final decompressedBytes = decompressFile(compressedData);
-        if (decompressedBytes.length == 1) {
-          final isTyping = decompressedBytes[0] == 1;
-          onTypingIndicationReceived?.call(isTyping);
-        } else {
-          onMessageReceived?.call(decompressedBytes);
-        }
-      } else {
-        onMessageReceived?.call(message.text);
-      }
-    };
+    _dataChannel.onDataChannelState = _handleDataChannelState;
+    _dataChannel.onMessage = _handleDataChannelMessage;
 
     _peerConnection.onDataChannel = (RTCDataChannel dataChannel) {
       _dataChannel = dataChannel;
     };
   }
 
+  void _handleDataChannelState(RTCDataChannelState state) {
+    if (state == RTCDataChannelState.RTCDataChannelOpen) {
+      _showToast("P2P connection established!", Colors.green);
+    }
+  }
+
+  void _handleDataChannelMessage(RTCDataChannelMessage message) {
+    if (message.isBinary) {
+      Uint8List receivedBytes = message.binary;
+
+      // Check for EOF and Typing Indication (uncompressed single byte)
+      if (receivedBytes.length == 1) {
+        if (receivedBytes[0] == 2) {
+          // EOF Marker
+          try {
+            Uint8List decompressedBytes = decompressFile(_receivedFileBuffer);
+            onMessageReceived?.call(decompressedBytes);
+          } catch (e) {
+            print("Error decompressing file: $e");
+          }
+          _receivedFileBuffer = Uint8List(0); // Reset buffer
+        } else if (receivedBytes[0] == 1 || receivedBytes[0] == 0) {
+          // Typing Indication
+          onTypingIndicationReceived?.call(receivedBytes[0] == 1);
+        }
+      } else {
+        // Append to buffer if it's part of a file
+        _receivedFileBuffer =
+            Uint8List.fromList(_receivedFileBuffer + receivedBytes);
+      }
+    } else {
+      onMessageReceived?.call(message.text);
+    }
+  }
+
   Future<void> sendFile(Uint8List fileBytes) async {
     if (_dataChannel.state == RTCDataChannelState.RTCDataChannelOpen) {
       try {
         Uint8List compressedFile = compressFile(fileBytes);
-        _dataChannel.send(RTCDataChannelMessage.fromBinary(compressedFile));
+        int chunkSize = 16 * 1024; // 16 KB chunks
+        for (int i = 0; i < compressedFile.length; i += chunkSize) {
+          int end = (i + chunkSize < compressedFile.length)
+              ? i + chunkSize
+              : compressedFile.length;
+          Uint8List chunk = compressedFile.sublist(i, end);
+          _dataChannel.send(RTCDataChannelMessage.fromBinary(chunk));
+        }
+        // Send EOF marker
+        await sendEOFIndicator();
       } catch (e) {
-        // Consider implementing retry logic or notifying the user
         print("Error sending file: $e");
+        _showToast("Error sending file", Colors.red);
       }
     } else {
-      // Notify the user that the file could not be sent
+      _showToast("Data channel is not open", Colors.red);
     }
   }
 
   Uint8List compressFile(Uint8List fileBytes) {
-    print("Compressing file");
-    // Create an archive
     final archive = Archive();
-    // Add the file to the archive
     final archiveFile = ArchiveFile('file', fileBytes.length, fileBytes);
     archive.addFile(archiveFile);
-    // Encode the archive as a ZIP
     final zipBytes = ZipEncoder().encode(archive);
     return Uint8List.fromList(zipBytes!);
   }
 
   Uint8List decompressFile(Uint8List compressedFileBytes) {
-    // Decode the ZIP archive
     final archive = ZipDecoder().decodeBytes(compressedFileBytes);
-    // Extract the file from the archive
     final fileBytes = archive.first.content as Uint8List;
     return fileBytes;
   }
 
   Future<void> sendTypingIndication(bool isTyping) async {
     if (_dataChannel.state == RTCDataChannelState.RTCDataChannelOpen) {
-      final data = Uint8List(1);
-      data[0] = isTyping ? 1 : 0;
-      _dataChannel.send(RTCDataChannelMessage.fromBinary(compressFile(data)));
+      final data = Uint8List(1)..[0] = isTyping ? 1 : 0;
+      _dataChannel.send(RTCDataChannelMessage.fromBinary(data));
+    }
+  }
+
+  Future<void> sendEOFIndicator() async {
+    if (_dataChannel.state == RTCDataChannelState.RTCDataChannelOpen) {
+      final data = Uint8List(1)..[0] = 2;
+      _dataChannel.send(RTCDataChannelMessage.fromBinary(data));
     }
   }
 
@@ -232,11 +250,22 @@ class WebRTCChatService {
     await _peerConnection.setRemoteDescription(rtcSessionDescription);
   }
 
-  // Close connection
   void closeConnection() {
     print("Closing connection");
     firestore.collection('rooms').doc(remoteId).delete();
     _peerConnection.close();
     _dataChannel.close();
+  }
+
+  void _showToast(String message, Color backgroundColor) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      timeInSecForIosWeb: 1,
+      backgroundColor: backgroundColor,
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
   }
 }

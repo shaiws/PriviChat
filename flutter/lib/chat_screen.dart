@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
-import 'webrtc_chat_service.dart';
 import 'package:mime/mime.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path_provider/path_provider.dart';
+import 'webrtc_chat_service.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class ChatScreen extends StatefulWidget {
   final String userId;
@@ -23,26 +25,28 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
-
   late WebRTCChatService _chatService;
-  final TextEditingController _roomIdController = TextEditingController();
-  final TextEditingController _userIdController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
   final List<Map<String, dynamic>> _messages = [];
   bool _isOtherUserTyping = false;
+  bool _isRecording = false;
+  FlutterSoundRecorder? _audioRecorder;
+  FlutterSoundPlayer? _audioPlayer;
 
   @override
   void initState() {
     super.initState();
     _initializeConnection();
+    _initializeRecorder();
+    _initializePlayer();
   }
 
   @override
   void dispose() {
-    _roomIdController.dispose();
-    _userIdController.dispose();
     _messageController.dispose();
     _scrollController.dispose();
+    _audioRecorder?.closeRecorder();
+    _audioPlayer?.closePlayer();
     _chatService.sendTypingIndication(false);
     _chatService.closeConnection();
     super.dispose();
@@ -75,7 +79,6 @@ class _ChatScreenState extends State<ChatScreen> {
           isFile = true;
           fileType = lookupMimeType('', headerBytes: message);
         }
-
         setState(() {
           _messages.add({
             'content': message,
@@ -98,6 +101,17 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Future<void> _initializeRecorder() async {
+    _audioRecorder = FlutterSoundRecorder();
+    await _audioRecorder!.openRecorder();
+    await _audioRecorder!.setSubscriptionDuration(Duration(milliseconds: 100));
+  }
+
+  Future<void> _initializePlayer() async {
+    _audioPlayer = FlutterSoundPlayer();
+    await _audioPlayer!.openPlayer();
+  }
+
   void _sendMessage() {
     final message = _messageController.text;
     if (message.isNotEmpty) {
@@ -113,7 +127,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
-    // Schedule a task to scroll to the bottom of the list after the UI build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
@@ -127,27 +140,59 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatService.sendTypingIndication(text.isNotEmpty);
   }
 
-  Future<void> checkAndRequestPermission() async {
-    var status;
-    if (Platform.isAndroid) {
-      final deviceInfo = DeviceInfoPlugin();
-      final androidInfo = await deviceInfo.androidInfo;
-      if (androidInfo.version.sdkInt <= 32) {
-        status = await Permission.storage.request();
-      } else {
-        status = await Permission.photos.request();
+  Future<void> _startRecording() async {
+    await checkAndRequestPermission();
+
+    if (await Permission.microphone.isGranted) {
+      final directory = await getApplicationDocumentsDirectory();
+      String filePath = '${directory.path}/audio.aac';
+
+      // Ensure the FlutterSoundRecorder is initialized
+      if (_audioRecorder == null) {
+        _audioRecorder = FlutterSoundRecorder();
+        await _audioRecorder!.openRecorder();
       }
 
-      if (status != PermissionStatus.granted) {
-        print("Permission denied.");
-        return;
-      }
-    } else if (Platform.isIOS) {
-      status = await Permission.photos.request();
-      if (status != PermissionStatus.granted) {
-        print("Permission denied.");
-        return;
-      }
+      await _audioRecorder!.startRecorder(
+        toFile: filePath,
+        codec: Codec
+            .aacADTS, // Use the AAC codec for high quality and compatibility
+        bitRate: 128000, // Set a higher bitrate for better quality
+        sampleRate: 48000, // Set a higher sample rate
+      );
+
+      setState(() {
+        _isRecording = true;
+      });
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    final filePath = await _audioRecorder!.stopRecorder();
+    setState(() {
+      _isRecording = false;
+    });
+
+    if (filePath != null) {
+      final File audioFile = File(filePath);
+      final Uint8List fileBytes = await audioFile.readAsBytes();
+      _sendAudioFile(fileBytes);
+    }
+  }
+
+  Future<void> _sendAudioFile(Uint8List fileBytes) async {
+    try {
+      _chatService.sendFile(fileBytes);
+      setState(() {
+        _messages.add({
+          'content': fileBytes,
+          'isSent': true,
+          'isFile': true,
+          'fileType': 'audio/aac'
+        });
+      });
+    } catch (e) {
+      print("An error occurred while sending the audio file: $e");
     }
   }
 
@@ -163,10 +208,12 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final Uint8List fileBytes = await pickedFile.readAsBytes();
 
-      final String? mimeType = lookupMimeType(pickedFile.path);
+      final String? mimeType = lookupMimeType('', headerBytes: fileBytes);
       final String fileType =
           mimeType ?? 'unknown'; // Set a default type if MIME type is null
-
+      print("File type: $fileType");
+      _chatService.sendFile(
+          fileBytes); // Ensure _chatService.sendFile can handle the data
       print("File size: ${fileBytes.length} bytes");
       setState(() {
         _messages.add({
@@ -176,8 +223,6 @@ class _ChatScreenState extends State<ChatScreen> {
           'fileType': fileType
         });
       });
-      _chatService.sendFile(
-          fileBytes); // Ensure _chatService.sendFile can handle the data
     } catch (e) {
       print("An error occurred while processing the file: $e");
     }
@@ -217,7 +262,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget buildMessage(messageData) {
     if (messageData['isFile']) {
       if (messageData['fileType'].indexOf('image') != -1) {
-        // Handle image files
         return GestureDetector(
           onTap: () {
             showDialog(
@@ -230,21 +274,33 @@ class _ChatScreenState extends State<ChatScreen> {
             );
           },
           child: SizedBox(
-            width: 100, // specify your desired width
-            height: 100, // specify your desired height
+            width: 100,
+            height: 100,
             child: Image.memory(
               messageData['content'],
               fit: BoxFit.cover,
             ),
           ),
         );
+      } else if (messageData['fileType'].indexOf('audio') != -1) {
+        return IconButton(
+          icon: const Icon(Icons.play_arrow),
+          onPressed: () async {
+            try {
+              await _audioPlayer!.startPlayer(
+                fromDataBuffer: messageData['content'],
+                codec: Codec.aacADTS,
+              );
+            } catch (e) {
+              print("An error occurred while playing the audio file: $e");
+            }
+          },
+        );
       } else if (messageData['fileType'] == 'mp4') {
-        // Handle video files
         VideoPlayerController controller =
             VideoPlayerController.network(messageData['content']);
         return VideoPlayer(controller);
       } else {
-        // Handle other types of files
         return ListTile(
           leading: const Icon(Icons.insert_drive_file),
           title: Text(messageData['fileType']),
@@ -320,11 +376,60 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   child: const Icon(Icons.attach_file),
                 ),
+                const SizedBox(width: 16.0),
+                _isRecording
+                    ? ElevatedButton(
+                        onPressed: _stopRecording,
+                        style: ElevatedButton.styleFrom(
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(16),
+                        ),
+                        child: const Icon(Icons.stop),
+                      )
+                    : ElevatedButton(
+                        onPressed: _startRecording,
+                        style: ElevatedButton.styleFrom(
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(16),
+                        ),
+                        child: const Icon(Icons.mic),
+                      ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> checkAndRequestPermission() async {
+    var status;
+    if (Platform.isAndroid) {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      if (androidInfo.version.sdkInt <= 32) {
+        status = await Permission.storage.request();
+      } else {
+        status = await Permission.photos.request();
+      }
+
+      if (status != PermissionStatus.granted) {
+        print("Permission denied.");
+        return;
+      }
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      status = await Permission.photos.request();
+      if (status != PermissionStatus.granted) {
+        print("Permission denied.");
+        return;
+      }
+    }
+
+    // Request microphone permission
+    status = await Permission.microphone.request();
+    if (status != PermissionStatus.granted) {
+      print("Microphone permission denied.");
+      return;
+    }
   }
 }
