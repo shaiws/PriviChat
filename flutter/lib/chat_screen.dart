@@ -1,14 +1,29 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'webrtc_chat_service.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:video_player/video_player.dart';
+import 'webrtc_chat_service.dart';
+import 'package:mime/mime.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ChatScreen extends StatefulWidget {
+  final String userId;
+  final String otherUserId;
+
+  const ChatScreen(
+      {super.key, required this.userId, required this.otherUserId});
+
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  final ScrollController _scrollController = ScrollController();
+
   late WebRTCChatService _chatService;
   final TextEditingController _roomIdController = TextEditingController();
   final TextEditingController _userIdController = TextEditingController();
@@ -17,30 +32,59 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isOtherUserTyping = false;
 
   @override
+  void initState() {
+    super.initState();
+    _initializeConnection();
+  }
+
+  @override
   void dispose() {
     _roomIdController.dispose();
     _userIdController.dispose();
     _messageController.dispose();
+    _scrollController.dispose();
+    _chatService.sendTypingIndication(false);
     _chatService.closeConnection();
     super.dispose();
   }
 
-  void _initializeConnection() {
-    final roomId = _roomIdController.text;
-    final userId = _userIdController.text;
+  void _initializeConnection() async {
+    String localId = widget.userId;
+    String remoteId = widget.userId;
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    DocumentSnapshot room =
+        await firestore.collection('rooms').doc(localId).get();
+
+    if (!room.exists) {
+      room = await firestore.collection('rooms').doc(widget.otherUserId).get();
+      if (room.exists) {
+        remoteId = widget.otherUserId;
+        localId = widget.userId;
+      }
+    }
 
     _chatService = WebRTCChatService(
-      roomId: roomId,
-      userId: userId,
-      onMessageReceived: (message, isImage) {
+      remoteId: remoteId,
+      localId: localId,
+      onMessageReceived: (dynamic message) {
+        bool isFile = false;
+        String? fileType = 'text';
+
+        if (message is Uint8List) {
+          isFile = true;
+          fileType = lookupMimeType('', headerBytes: message);
+        }
+
         setState(() {
-          if (isImage) {
-            _messages
-                .add({'imageBytes': message, 'isSent': false, 'isImage': true});
-          } else {
-            _messages.add({'text': message, 'isSent': false, 'isImage': false});
-          }
+          _messages.add({
+            'content': message,
+            'isSent': false,
+            'isFile': isFile,
+            'fileType': fileType
+          });
         });
+        _scrollToBottom();
       },
       onTypingIndicationReceived: (isTyping) {
         setState(() {
@@ -48,6 +92,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       },
     );
+
     _chatService.init().then((_) {
       _chatService.createOffer();
     });
@@ -58,50 +103,98 @@ class _ChatScreenState extends State<ChatScreen> {
     if (message.isNotEmpty) {
       _chatService.sendMessage(message);
       setState(() {
-        _messages.add({'text': message, 'isSent': true, 'isImage': false});
+        _messages.add({'content': message, 'isSent': true, 'isFile': false});
       });
+      _scrollToBottom();
+
       _messageController.clear();
     }
     _chatService.sendTypingIndication(false);
   }
 
-  void _sendImage() async {
-    final status = await Permission.storage.request();
-    if (status == PermissionStatus.granted) {
-      final picker = ImagePicker();
-      final pickedImage = await picker.pickImage(source: ImageSource.gallery);
-      if (pickedImage != null) {
-        final imageBytes = await pickedImage.readAsBytes();
-        _chatService.sendMessage(imageBytes, isImage: true);
-        setState(() {
-          _messages
-              .add({'imageBytes': imageBytes, 'isSent': true, 'isImage': true});
-        });
-      }
-    } else {
-      // Permission denied, handle accordingly
-      print('Storage permission denied');
-    }
+  void _scrollToBottom() {
+    // Schedule a task to scroll to the bottom of the list after the UI build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   void _onMessageChanged(String text) {
     _chatService.sendTypingIndication(text.isNotEmpty);
   }
 
+  Future<void> checkAndRequestPermission() async {
+    var status;
+    if (Platform.isAndroid) {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      if (androidInfo.version.sdkInt <= 32) {
+        status = await Permission.storage.request();
+      } else {
+        status = await Permission.photos.request();
+      }
+
+      if (status != PermissionStatus.granted) {
+        print("Permission denied.");
+        return;
+      }
+    } else if (Platform.isIOS) {
+      status = await Permission.photos.request();
+      if (status != PermissionStatus.granted) {
+        print("Permission denied.");
+        return;
+      }
+    }
+  }
+
+  Future<void> _sendFile() async {
+    checkAndRequestPermission();
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickMedia();
+    if (pickedFile == null) {
+      print("No file picked.");
+      return;
+    }
+
+    try {
+      final Uint8List fileBytes = await pickedFile.readAsBytes();
+
+      final String? mimeType = lookupMimeType(pickedFile.path);
+      final String fileType =
+          mimeType ?? 'unknown'; // Set a default type if MIME type is null
+
+      print("File size: ${fileBytes.length} bytes");
+      setState(() {
+        _messages.add({
+          'content': fileBytes,
+          'isSent': true,
+          'isFile': true,
+          'fileType': fileType
+        });
+      });
+      _chatService.sendFile(
+          fileBytes); // Ensure _chatService.sendFile can handle the data
+    } catch (e) {
+      print("An error occurred while processing the file: $e");
+    }
+  }
+
   Widget _buildMessageBubble(Map<String, dynamic> messageData) {
-    print(messageData);
     bool isSent = messageData['isSent'];
-    bool isImage = messageData['isImage'];
     Alignment alignment = isSent ? Alignment.centerRight : Alignment.centerLeft;
     Color color =
-        isSent ? Colors.blue[200]! : Color.fromARGB(255, 111, 175, 92)!;
+        isSent ? Colors.blue[200]! : const Color.fromARGB(255, 111, 175, 92);
     BorderRadius borderRadius = isSent
-        ? BorderRadius.only(
+        ? const BorderRadius.only(
             topLeft: Radius.circular(12),
             bottomLeft: Radius.circular(12),
             bottomRight: Radius.circular(12),
           )
-        : BorderRadius.only(
+        : const BorderRadius.only(
             topRight: Radius.circular(12),
             bottomLeft: Radius.circular(12),
             bottomRight: Radius.circular(12),
@@ -116,64 +209,66 @@ class _ChatScreenState extends State<ChatScreen> {
           color: color,
           borderRadius: borderRadius,
         ),
-        child: isImage
-            ? Image.memory(messageData['imageBytes'])
-            : SelectableText(
-                messageData['text'],
-                style: TextStyle(fontSize: 16),
-              ),
+        child: buildMessage(messageData),
       ),
     );
+  }
+
+  Widget buildMessage(messageData) {
+    if (messageData['isFile']) {
+      if (messageData['fileType'].indexOf('image') != -1) {
+        // Handle image files
+        return GestureDetector(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return Dialog(
+                  child: Image.memory(messageData['content']),
+                );
+              },
+            );
+          },
+          child: SizedBox(
+            width: 100, // specify your desired width
+            height: 100, // specify your desired height
+            child: Image.memory(
+              messageData['content'],
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      } else if (messageData['fileType'] == 'mp4') {
+        // Handle video files
+        VideoPlayerController controller =
+            VideoPlayerController.network(messageData['content']);
+        return VideoPlayer(controller);
+      } else {
+        // Handle other types of files
+        return ListTile(
+          leading: const Icon(Icons.insert_drive_file),
+          title: Text(messageData['fileType']),
+        );
+      }
+    } else {
+      return SelectableText(
+        messageData['content'],
+        style: const TextStyle(fontSize: 16),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('WebRTC Chat'),
+        title: Text('PriviChat with user ID: ${widget.otherUserId}'),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _roomIdController,
-                    decoration: InputDecoration(
-                      labelText: 'Room ID',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16.0),
-                Expanded(
-                  child: TextField(
-                    controller: _userIdController,
-                    decoration: InputDecoration(
-                      labelText: 'User ID',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 16.0),
-                ElevatedButton(
-                  onPressed: _initializeConnection,
-                  child: Text('Connect'),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           if (_isOtherUserTyping)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
               child: Text(
                 'Typing...',
                 style: TextStyle(fontStyle: FontStyle.italic),
@@ -181,13 +276,14 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 return _buildMessageBubble(_messages[index]);
               },
             ),
           ),
-          Divider(height: 1),
+          const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -201,28 +297,28 @@ class _ChatScreenState extends State<ChatScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
-                // SizedBox(width: 16.0),
-                // ElevatedButton(
-                //   onPressed: _sendImage,
-                //   child: Icon(Icons.image),
-                //   style: ElevatedButton.styleFrom(
-                //     shape: CircleBorder(),
-                //     padding: EdgeInsets.all(16),
-                //   ),
-                // ),
-                SizedBox(width: 16.0),
+                const SizedBox(width: 16.0),
                 ElevatedButton(
                   onPressed: _sendMessage,
-                  child: Icon(Icons.send),
                   style: ElevatedButton.styleFrom(
-                    shape: CircleBorder(),
-                    padding: EdgeInsets.all(16),
+                    shape: const CircleBorder(),
+                    padding: const EdgeInsets.all(16),
                   ),
+                  child: const Icon(Icons.send),
+                ),
+                const SizedBox(width: 16.0),
+                ElevatedButton(
+                  onPressed: _sendFile,
+                  style: ElevatedButton.styleFrom(
+                    shape: const CircleBorder(),
+                    padding: const EdgeInsets.all(16),
+                  ),
+                  child: const Icon(Icons.attach_file),
                 ),
               ],
             ),

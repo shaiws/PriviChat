@@ -25,10 +25,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for windows - '
@@ -74,5 +71,15 @@ class DefaultFirebaseOptions {
     databaseURL: 'https://privichat-71c1f-default-rtdb.europe-west1.firebasedatabase.app',
     storageBucket: 'privichat-71c1f.appspot.com',
     iosBundleId: 'com.example.privichatFlutter',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyBCMyt8PqUfJrydkXWhiMbRz9w_asqlH3E',
+    appId: '1:797109856548:ios:49f904ea5b579d798f2bb1',
+    messagingSenderId: '797109856548',
+    projectId: 'privichat-71c1f',
+    databaseURL: 'https://privichat-71c1f-default-rtdb.europe-west1.firebasedatabase.app',
+    storageBucket: 'privichat-71c1f.appspot.com',
+    iosBundleId: 'com.example.privichatFlutter.RunnerTests',
   );
 }
