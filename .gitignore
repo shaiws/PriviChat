@@ -1,3 +1,8 @@
 flutter/lib/config.json
+flutter/lib/firebase_options.dart
 flutter/assets/config.json
 flutter/macos/firebase_app_id_file.json
+flutter/ios/Runner/GoogleService-Info.plist
+flutter/macos/Runner/GoogleService-Info.plist
+
+

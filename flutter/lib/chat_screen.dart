@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -32,6 +33,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isRecording = false;
   FlutterSoundRecorder? _audioRecorder;
   FlutterSoundPlayer? _audioPlayer;
+  Map<int, ChewieController> _chewieControllers = {};
+  Map<int, VideoPlayerController> _videoControllers = {};
 
   @override
   void initState() {
@@ -49,7 +52,17 @@ class _ChatScreenState extends State<ChatScreen> {
     _audioPlayer?.closePlayer();
     _chatService.sendTypingIndication(false);
     _chatService.closeConnection();
+    _disposeVideoControllers();
     super.dispose();
+  }
+
+  void _disposeVideoControllers() {
+    _chewieControllers.forEach((key, chewieController) {
+      chewieController.dispose();
+    });
+    _videoControllers.forEach((key, videoController) {
+      videoController.dispose();
+    });
   }
 
   void _initializeConnection() async {
@@ -71,17 +84,27 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatService = WebRTCChatService(
       remoteId: remoteId,
       localId: localId,
-      onMessageReceived: (dynamic message) {
+      onMessageReceived: (dynamic message) async {
         bool isFile = false;
         String? fileType = 'text';
+        dynamic content = message;
 
         if (message is Uint8List) {
           isFile = true;
           fileType = lookupMimeType('', headerBytes: message);
+
+          // Save file to temp directory
+          final tempDir = await getTemporaryDirectory();
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final tempFile = File(
+              '${tempDir.path}/$timestamp.${fileType?.split('/')[1] ?? 'tmp'}');
+          await tempFile.writeAsBytes(message);
+          content = tempFile.path;
         }
+
         setState(() {
           _messages.add({
-            'content': message,
+            'content': content,
             'isSent': false,
             'isFile': isFile,
             'fileType': fileType
@@ -197,7 +220,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendFile() async {
-    checkAndRequestPermission();
+    await checkAndRequestPermission();
     final picker = ImagePicker();
     final pickedFile = await picker.pickMedia();
     if (pickedFile == null) {
@@ -207,17 +230,24 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final Uint8List fileBytes = await pickedFile.readAsBytes();
-
       final String? mimeType = lookupMimeType('', headerBytes: fileBytes);
       final String fileType =
           mimeType ?? 'unknown'; // Set a default type if MIME type is null
+
+      // Save file to temp directory
+      final tempDir = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final tempFile = File(
+          '${tempDir.path}/$timestamp.${mimeType?.split('/')[1] ?? 'tmp'}');
+      await tempFile.writeAsBytes(fileBytes);
+
       print("File type: $fileType");
       _chatService.sendFile(
           fileBytes); // Ensure _chatService.sendFile can handle the data
       print("File size: ${fileBytes.length} bytes");
       setState(() {
         _messages.add({
-          'content': fileBytes,
+          'content': tempFile.path, // Save the file path instead of the bytes
           'isSent': true,
           'isFile': true,
           'fileType': fileType
@@ -268,7 +298,10 @@ class _ChatScreenState extends State<ChatScreen> {
               context: context,
               builder: (BuildContext context) {
                 return Dialog(
-                  child: Image.memory(messageData['content']),
+                  child: Image.file(
+                    File(messageData['content']),
+                    fit: BoxFit.cover,
+                  ),
                 );
               },
             );
@@ -276,8 +309,8 @@ class _ChatScreenState extends State<ChatScreen> {
           child: SizedBox(
             width: 100,
             height: 100,
-            child: Image.memory(
-              messageData['content'],
+            child: Image.file(
+              File(messageData['content']),
               fit: BoxFit.cover,
             ),
           ),
@@ -288,18 +321,40 @@ class _ChatScreenState extends State<ChatScreen> {
           onPressed: () async {
             try {
               await _audioPlayer!.startPlayer(
-                fromDataBuffer: messageData['content'],
+                fromURI: messageData['content'],
                 codec: Codec.aacADTS,
               );
             } catch (e) {
-              print("An error occurred while playing the audio file: $e");
+              try {
+                await _audioPlayer!.startPlayer(
+                  fromDataBuffer: messageData['content'],
+                  codec: Codec.aacADTS,
+                );
+              } catch (e) {
+                print("An error occurred while playing the audio file: $e");
+              }
             }
           },
         );
-      } else if (messageData['fileType'] == 'mp4') {
-        VideoPlayerController controller =
-            VideoPlayerController.network(messageData['content']);
-        return VideoPlayer(controller);
+      } else if (messageData['fileType'].indexOf('mp4') != -1) {
+        int index = _messages.indexOf(messageData);
+        if (_videoControllers[index] == null) {
+          _videoControllers[index] = VideoPlayerController.file(
+            File(messageData['content']),
+          );
+          _chewieControllers[index] = ChewieController(
+            videoPlayerController: _videoControllers[index]!,
+            autoPlay: false,
+            looping: false,
+            allowMuting: true,
+          );
+        }
+
+        return SizedBox(
+          width: 200, // Set the desired width
+          height: 200, // Set the desired height
+          child: Chewie(controller: _chewieControllers[index]!),
+        );
       } else {
         return ListTile(
           leading: const Icon(Icons.insert_drive_file),
