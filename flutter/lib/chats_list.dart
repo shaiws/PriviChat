@@ -81,6 +81,7 @@ class _ChatsListState extends State<ChatsList> {
                               builder: (context) => ChatScreen(
                                 userId: widget.userId,
                                 otherUserId: _users[index]['userId']!,
+                                otherUserNickname: _users[index]['nickname']!,
                               ),
                             ),
                           );

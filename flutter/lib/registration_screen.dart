@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'chats_list.dart';
+import 'contact_list.dart';
 
 class RegistrationScreen extends StatefulWidget {
   @override
@@ -13,8 +17,37 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final _nicknameController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   bool _isLoading = false;
   String? _errorMessage;
+  File? _profileImage;
+
+  Future<void> _pickImage() async {
+    final pickedFile =
+        await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    setState(() {
+      if (pickedFile != null) {
+        _profileImage = File(pickedFile.path);
+      }
+    });
+  }
+
+  Future<String?> _uploadProfileImage(String userId) async {
+    if (_profileImage == null) return null;
+
+    try {
+      Reference ref = _storage.ref().child('profile_images').child(userId);
+      UploadTask uploadTask = ref.putFile(_profileImage!);
+      TaskSnapshot taskSnapshot = await uploadTask;
+      return await taskSnapshot.ref.getDownloadURL();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error uploading profile image';
+      });
+      return null;
+    }
+  }
 
   Future<void> _register() async {
     setState(() {
@@ -43,22 +76,27 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       UserCredential userCredential = await _auth.signInAnonymously();
       String userId = userCredential.user!.uid;
 
+      String? profileImageUrl = await _uploadProfileImage(userId);
+
       await _firestore.collection('users').doc(userId).set({
         'userId': userId,
         'nickname': nickname,
+        'profileImage': profileImageUrl ?? '',
       });
 
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString('nickname', nickname);
 
       Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-            builder: (context) =>
-                ChatsList(userId: userId, nickname: nickname)),
-      );
+          context,
+          MaterialPageRoute(
+              builder: (context) => ContactList(
+                    userId: userId,
+                    nickname: nickname,
+                  )));
     } catch (e) {
       setState(() {
+        print(e);
         _isLoading = false;
         _errorMessage = 'An error occurred. Please try again.';
       });
@@ -70,29 +108,83 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Register'),
+        backgroundColor: const Color(0xFF0088CC),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _nicknameController,
-              decoration:
-                  const InputDecoration(labelText: 'Enter your nickname'),
+            const SizedBox(height: 40),
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage:
+                      _profileImage != null ? FileImage(_profileImage!) : null,
+                  child: _profileImage == null
+                      ? Icon(Icons.camera_alt,
+                          size: 50, color: Colors.grey[700])
+                      : null,
+                ),
+              ),
             ),
             const SizedBox(height: 20),
+            Text(
+              'Enter your nickname',
+              style: TextStyle(
+                color: Colors.black54,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nicknameController,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16.0, horizontal: 16.0),
+              ),
+            ),
+            const SizedBox(height: 24),
             if (_isLoading)
-              const CircularProgressIndicator()
+              Center(child: const CircularProgressIndicator())
             else
-              ElevatedButton(
-                onPressed: _register,
-                child: const Text('Register'),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _register,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0088CC),
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                  ),
+                  child: const Text(
+                    'Register',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 20),
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red),
+              Center(
+                child: Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                ),
               ),
             ],
           ],
