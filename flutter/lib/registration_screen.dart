@@ -22,9 +22,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   String? _errorMessage;
   File? _profileImage;
 
-  Future<void> _pickImage() async {
-    final pickedFile =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
 
     setState(() {
       if (pickedFile != null) {
@@ -103,6 +102,36 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     }
   }
 
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: Icon(Icons.photo_library),
+                title: Text('Photo Library'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.camera_alt),
+                title: Text('Camera'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,7 +147,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             const SizedBox(height: 40),
             Center(
               child: GestureDetector(
-                onTap: _pickImage,
+                onTap: _showImageSourceOptions,
                 child: CircleAvatar(
                   radius: 60,
                   backgroundColor: Colors.grey[200],

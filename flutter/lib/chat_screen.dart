@@ -11,6 +11,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:audio_session/audio_session.dart'; // Add this import
+
 import 'webrtc_chat_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -142,7 +144,26 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _initializeRecorder() async {
     _audioRecorder = FlutterSoundRecorder();
     await _audioRecorder!.openRecorder();
-    await _audioRecorder!.setSubscriptionDuration(Duration(milliseconds: 100));
+    await _audioRecorder!
+        .setSubscriptionDuration(const Duration(milliseconds: 10));
+    if (Platform.isIOS) {
+      final session = await AudioSession.instance;
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions:
+            AVAudioSessionCategoryOptions.allowBluetooth |
+                AVAudioSessionCategoryOptions.defaultToSpeaker,
+        avAudioSessionMode: AVAudioSessionMode.spokenAudio,
+        avAudioSessionRouteSharingPolicy:
+            AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
+    }
   }
 
   Future<void> _initializePlayer() async {
@@ -184,11 +205,16 @@ class _ChatScreenState extends State<ChatScreen> {
     if (await Permission.microphone.isGranted) {
       final directory = await getApplicationDocumentsDirectory();
       String filePath = '${directory.path}/audio.aac';
-
+      print("File path: $filePath");
       // Ensure the FlutterSoundRecorder is initialized
       if (_audioRecorder == null) {
         _audioRecorder = FlutterSoundRecorder();
         await _audioRecorder!.openRecorder();
+      }
+
+      if (Platform.isIOS) {
+        final session = await AudioSession.instance;
+        await session.setActive(true);
       }
 
       await _audioRecorder!.startRecorder(
@@ -206,15 +232,29 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _stopRecording() async {
+    if (_audioRecorder == null) {
+      return;
+    }
+
     final filePath = await _audioRecorder!.stopRecorder();
+    print("Recorded file path: $filePath");
     setState(() {
       _isRecording = false;
     });
 
     if (filePath != null) {
       final File audioFile = File(filePath);
-      final Uint8List fileBytes = await audioFile.readAsBytes();
-      _sendAudioFile(fileBytes);
+
+      if (await audioFile.exists()) {
+        final Uint8List fileBytes = await audioFile.readAsBytes();
+        if (fileBytes.isNotEmpty) {
+          _sendAudioFile(fileBytes);
+        } else {
+          print("Recorded file is empty.");
+        }
+      } else {
+        print("Audio file does not exist at path: $filePath");
+      }
     }
   }
 
@@ -316,7 +356,7 @@ class _ChatScreenState extends State<ChatScreen> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: borderRadius,
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               offset: Offset(2, 2),
@@ -364,6 +404,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget buildMessageContent(
       Map<String, dynamic> messageData, Color textColor) {
+    print("Message data: $messageData");
     if (messageData['isFile']) {
       if (messageData['fileType'].indexOf('image') != -1) {
         return SizedBox(
@@ -486,7 +527,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   Expanded(
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(
+                      constraints: const BoxConstraints(
                         maxHeight:
                             150, // Set a maximum height for the input field
                       ),
@@ -661,7 +702,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Request microphone permission
     status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
-      print("Microphone permission denied.");
+      print("Microphone permission denied");
       return;
     }
   }

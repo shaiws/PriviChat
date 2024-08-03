@@ -946,6 +946,8 @@ PODS:
     - abseil/meta/type_traits
     - abseil/xcprivacy
   - abseil/xcprivacy (1.20240116.2)
+  - audio_session (0.0.1):
+    - Flutter
   - audioplayers_darwin (0.0.1):
     - Flutter
   - BoringSSL-GRPC (0.0.32):
@@ -954,36 +956,36 @@ PODS:
   - BoringSSL-GRPC/Implementation (0.0.32):
     - BoringSSL-GRPC/Interface (= 0.0.32)
   - BoringSSL-GRPC/Interface (0.0.32)
-  - cloud_firestore (5.1.0):
-    - Firebase/Firestore (= 10.28.0)
+  - cloud_firestore (5.2.0):
+    - Firebase/Firestore (= 10.29.0)
     - firebase_core
     - Flutter
   - device_info_plus (0.0.1):
     - Flutter
-  - Firebase/Auth (10.28.0):
+  - Firebase/Auth (10.29.0):
     - Firebase/CoreOnly
-    - FirebaseAuth (~> 10.28.0)
-  - Firebase/CoreOnly (10.28.0):
-    - FirebaseCore (= 10.28.0)
-  - Firebase/Firestore (10.28.0):
+    - FirebaseAuth (~> 10.29.0)
+  - Firebase/CoreOnly (10.29.0):
+    - FirebaseCore (= 10.29.0)
+  - Firebase/Firestore (10.29.0):
     - Firebase/CoreOnly
-    - FirebaseFirestore (~> 10.28.0)
-  - Firebase/Storage (10.28.0):
+    - FirebaseFirestore (~> 10.29.0)
+  - Firebase/Storage (10.29.0):
     - Firebase/CoreOnly
-    - FirebaseStorage (~> 10.28.0)
-  - firebase_auth (5.1.2):
-    - Firebase/Auth (= 10.28.0)
+    - FirebaseStorage (~> 10.29.0)
+  - firebase_auth (5.1.3):
+    - Firebase/Auth (= 10.29.0)
     - firebase_core
     - Flutter
-  - firebase_core (3.2.0):
-    - Firebase/CoreOnly (= 10.28.0)
+  - firebase_core (3.3.0):
+    - Firebase/CoreOnly (= 10.29.0)
     - Flutter
-  - firebase_storage (12.1.1):
-    - Firebase/Storage (= 10.28.0)
+  - firebase_storage (12.1.2):
+    - Firebase/Storage (= 10.29.0)
     - firebase_core
     - Flutter
   - FirebaseAppCheckInterop (10.29.0)
-  - FirebaseAuth (10.28.0):
+  - FirebaseAuth (10.29.0):
     - FirebaseAppCheckInterop (~> 10.17)
     - FirebaseCore (~> 10.0)
     - GoogleUtilities/AppDelegateSwizzler (~> 7.8)
@@ -991,7 +993,7 @@ PODS:
     - GTMSessionFetcher/Core (< 4.0, >= 2.1)
     - RecaptchaInterop (~> 100.0)
   - FirebaseAuthInterop (10.29.0)
-  - FirebaseCore (10.28.0):
+  - FirebaseCore (10.29.0):
     - FirebaseCoreInternal (~> 10.0)
     - GoogleUtilities/Environment (~> 7.12)
     - GoogleUtilities/Logger (~> 7.12)
@@ -999,12 +1001,12 @@ PODS:
     - FirebaseCore (~> 10.0)
   - FirebaseCoreInternal (10.29.0):
     - "GoogleUtilities/NSData+zlib (~> 7.8)"
-  - FirebaseFirestore (10.28.0):
+  - FirebaseFirestore (10.29.0):
     - FirebaseCore (~> 10.0)
     - FirebaseCoreExtension (~> 10.0)
-    - FirebaseFirestoreInternal (= 10.28.0)
+    - FirebaseFirestoreInternal (= 10.29.0)
     - FirebaseSharedSwift (~> 10.0)
-  - FirebaseFirestoreInternal (10.28.0):
+  - FirebaseFirestoreInternal (10.29.0):
     - abseil/algorithm (~> 1.20240116.1)
     - abseil/base (~> 1.20240116.1)
     - abseil/container/flat_hash_map (~> 1.20240116.1)
@@ -1020,7 +1022,7 @@ PODS:
     - leveldb-library (~> 1.22)
     - nanopb (< 2.30911.0, >= 2.30908.0)
   - FirebaseSharedSwift (10.29.0)
-  - FirebaseStorage (10.28.0):
+  - FirebaseStorage (10.29.0):
     - FirebaseAppCheckInterop (~> 10.0)
     - FirebaseAuthInterop (~> 10.25)
     - FirebaseCore (~> 10.0)
@@ -1028,10 +1030,10 @@ PODS:
     - GoogleUtilities/Environment (~> 7.12)
     - GTMSessionFetcher/Core (< 4.0, >= 2.1)
   - Flutter (1.0.0)
-  - flutter_sound (9.8.1):
+  - flutter_sound (9.9.4):
     - Flutter
-    - flutter_sound_core (= 9.8.1)
-  - flutter_sound_core (9.8.1)
+    - flutter_sound_core (= 9.9.4)
+  - flutter_sound_core (9.9.4)
   - flutter_webrtc (0.11.3):
     - Flutter
     - WebRTC-SDK (= 125.6422.04)
@@ -1172,6 +1174,7 @@ PODS:
   - WebRTC-SDK (125.6422.04)
 
 DEPENDENCIES:
+  - audio_session (from `.symlinks/plugins/audio_session/ios`)
   - audioplayers_darwin (from `.symlinks/plugins/audioplayers_darwin/ios`)
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - device_info_plus (from `.symlinks/plugins/device_info_plus/ios`)
@@ -1220,6 +1223,8 @@ SPEC REPOS:
     - WebRTC-SDK
 
 EXTERNAL SOURCES:
+  audio_session:
+    :path: ".symlinks/plugins/audio_session/ios"
   audioplayers_darwin:
     :path: ".symlinks/plugins/audioplayers_darwin/ios"
   cloud_firestore:
@@ -1261,27 +1266,28 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   abseil: d121da9ef7e2ff4cab7666e76c5a3e0915ae08c3
+  audio_session: 088d2483ebd1dc43f51d253d4a1c517d9a2e7207
   audioplayers_darwin: 877d9a4d06331c5c374595e46e16453ac7eafa40
   BoringSSL-GRPC: 1e2348957acdbcad360b80a264a90799984b2ba6
-  cloud_firestore: 71f0ffec97ce23c51587ec906f4cc470c518bc70
+  cloud_firestore: 9bdbf5a952da93fad19c89f4a497bff41b3f7df2
   device_info_plus: 97af1d7e84681a90d0693e63169a5d50e0839a0d
-  Firebase: 5121c624121af81cbc81df3bda414b3c28c4f3c3
-  firebase_auth: e778ee89483b86fe4200d1f8e9a1c52aa5fb64a8
-  firebase_core: a9d0180d5285527884d07a41eb4a9ec9ed12cdb6
-  firebase_storage: f7cd2f66840540e243e77325f4e272e2c0dc0603
+  Firebase: cec914dab6fd7b1bd8ab56ea07ce4e03dd251c2d
+  firebase_auth: 6a09851aca5fcbb1f3745bed7ec88f221c52c3e9
+  firebase_core: 57aeb91680e5d5e6df6b888064be7c785f146efb
+  firebase_storage: 8e77a49f4b0b7c6b68bc09d7029092c618353f89
   FirebaseAppCheckInterop: 6a1757cfd4067d8e00fccd14fcc1b8fd78cfac07
-  FirebaseAuth: 3d872fbbfc4223edeb72769e488f325fa8b0a4a9
+  FirebaseAuth: e2ebfaf9fb4638a1c9a3b0efd17d1b90943987cd
   FirebaseAuthInterop: 17db81e9b198afb0f95ce48c133825727eed55d3
-  FirebaseCore: 857dc1c6dd1255675047404d8466f7dfaac5d779
+  FirebaseCore: 30e9c1cbe3d38f5f5e75f48bfcea87d7c358ec16
   FirebaseCoreExtension: 705ca5b14bf71d2564a0ddc677df1fc86ffa600f
   FirebaseCoreInternal: df84dd300b561c27d5571684f389bf60b0a5c934
-  FirebaseFirestore: 55636df3da462136352b3465e26a86a988cc792c
-  FirebaseFirestoreInternal: 354755e5745ca39862218087d9f754dde20f1059
+  FirebaseFirestore: f258936f52d712337233182b90042a76ff48dce0
+  FirebaseFirestoreInternal: f43d25cc04835ec3aa1885f4fc946a1a4f9e1c56
   FirebaseSharedSwift: 20530f495084b8d840f78a100d8c5ee613375f6e
-  FirebaseStorage: b152225e6782299fce586cd5c90aca60c1bb9607
+  FirebaseStorage: 436c30aa46f2177ba152f268fe4452118b8a4856
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
-  flutter_sound: 50f27298c6997541da1afbd4ff368a3aee60451d
-  flutter_sound_core: e7ccc8b10ecfd22894fd0507c5e79a6ae6fafeb8
+  flutter_sound: 5ad5295fd212a62f6073822acba0a16a9245d727
+  flutter_sound_core: c18464f754d65eb97413318ebc5736f754e62dc5
   flutter_webrtc: 75b868e4f9e817c7a9a42ca4b6169063de4eec9f
   fluttertoast: e9a18c7be5413da53898f660530c56f35edfba9c
   gallery_saver: 9fc173c9f4fcc48af53b2a9ebea1b643255be542
@@ -1304,6 +1310,6 @@ SPEC CHECKSUMS:
   wakelock_plus: 78ec7c5b202cab7761af8e2b2b3d0671be6c4ae1
   WebRTC-SDK: c3d69a87e7185fad3568f6f3cff7c9ac5890acf3
 
-PODFILE CHECKSUM: 351dbda8241c6ae667acbc7bc0353a0d9978d7f1
+PODFILE CHECKSUM: 8c3193676c47f2f5ea34451d03a16856923c487d
 
 COCOAPODS: 1.15.2

@@ -17,11 +17,26 @@ class ContactList extends StatefulWidget {
 
 class _ContactListState extends State<ContactList> {
   List<Map<String, String>> contacts = [];
+  List<Map<String, String>> filteredContacts = [];
+  bool isSearching = false;
+  TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadContacts();
+    searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    searchController.removeListener(_onSearchChanged);
+    searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    filterContacts();
   }
 
   Future<void> _loadContacts() async {
@@ -31,6 +46,7 @@ class _ContactListState extends State<ContactList> {
       contacts = storedContacts
           .map((contact) => Map<String, String>.from(jsonDecode(contact)))
           .toList();
+      filteredContacts = contacts;
     });
   }
 
@@ -46,6 +62,7 @@ class _ContactListState extends State<ContactList> {
       List<String> storedContacts =
           contacts.map((contact) => jsonEncode(contact)).toList();
       prefs.setStringList('contacts', storedContacts);
+      filteredContacts = contacts;
     });
   }
 
@@ -56,6 +73,7 @@ class _ContactListState extends State<ContactList> {
       List<String> storedContacts =
           contacts.map((contact) => jsonEncode(contact)).toList();
       prefs.setStringList('contacts', storedContacts);
+      filteredContacts = contacts;
     });
   }
 
@@ -161,16 +179,49 @@ class _ContactListState extends State<ContactList> {
     );
   }
 
+  void filterContacts() {
+    List<Map<String, String>> _contacts = [];
+    _contacts.addAll(contacts);
+    if (searchController.text.isNotEmpty) {
+      _contacts.retainWhere((contact) {
+        String searchTerm = searchController.text.toLowerCase();
+        String contactName = contact['nickname']!.toLowerCase();
+        return contactName.contains(searchTerm);
+      });
+    }
+    setState(() {
+      filteredContacts = _contacts;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Contact List'),
+        title: isSearching
+            ? TextField(
+                controller: searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search contacts...',
+                  border: InputBorder.none,
+                ),
+                style: const TextStyle(color: Colors.white, fontSize: 16.0),
+              )
+            : const Text('Contact List'),
         backgroundColor: const Color(0xFF0088CC),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {},
+            icon: Icon(isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                isSearching = !isSearching;
+                if (!isSearching) {
+                  searchController.clear();
+                  filteredContacts = contacts;
+                }
+              });
+            },
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -214,21 +265,22 @@ class _ContactListState extends State<ContactList> {
           ),
           Expanded(
             child: ListView.builder(
-              itemCount: contacts.length,
+              itemCount: filteredContacts.length,
               itemBuilder: (context, index) {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: Colors.grey[200],
-                    backgroundImage: contacts[index]['profileImage']!.isNotEmpty
-                        ? NetworkImage(contacts[index]['profileImage']!)
+                    backgroundImage: filteredContacts[index]['profileImage']!
+                            .isNotEmpty
+                        ? NetworkImage(filteredContacts[index]['profileImage']!)
                         : null,
                     radius: 25,
-                    child: contacts[index]['profileImage']!.isEmpty
+                    child: filteredContacts[index]['profileImage']!.isEmpty
                         ? Icon(Icons.person, color: Colors.grey[700])
                         : null,
                   ),
                   title: Text(
-                    contacts[index]['nickname']!,
+                    filteredContacts[index]['nickname']!,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   trailing: IconButton(
@@ -243,8 +295,9 @@ class _ContactListState extends State<ContactList> {
                       MaterialPageRoute(
                         builder: (context) => ChatScreen(
                           userId: widget.userId,
-                          otherUserId: contacts[index]['userId']!,
-                          otherUserNickname: contacts[index]['nickname']!,
+                          otherUserId: filteredContacts[index]['userId']!,
+                          otherUserNickname: filteredContacts[index]
+                              ['nickname']!,
                         ),
                       ),
                     );

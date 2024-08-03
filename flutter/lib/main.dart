@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -52,10 +51,10 @@ class _InitialScreenState extends State<InitialScreen> {
           await FirebaseAuth.instance.signInAnonymously();
       String userId = userCredential.user!.uid;
 
-      await FirebaseFirestore.instance.collection('users').doc(nickname).set({
-        'userId': userId,
-        'nickname': nickname,
-      });
+      // await FirebaseFirestore.instance.collection('users').doc(nickname).set({
+      //   'userId': userId,
+      //   'nickname': nickname,
+      // });
 
       setState(() {
         _nickname = nickname;
@@ -72,7 +71,7 @@ class _InitialScreenState extends State<InitialScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     } else if (_nickname != null && _userId != null) {
