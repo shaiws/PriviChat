@@ -4,6 +4,7 @@ import 'package:privichat_flutter/registration_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'chat_screen.dart';
+import 'friend_request_handler.dart';
 
 class ContactList extends StatefulWidget {
   final String userId;
@@ -20,12 +21,23 @@ class _ContactListState extends State<ContactList> {
   List<Map<String, String>> filteredContacts = [];
   bool isSearching = false;
   TextEditingController searchController = TextEditingController();
+  bool isLoading = true;
+
+  int pendingFriendRequests = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadContacts();
-    searchController.addListener(_onSearchChanged);
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadContacts();
+    await _checkPendingFriendRequests();
+    _listenForFriendRequests();
+    setState(() {
+      isLoading = false;
+    });
   }
 
   @override
@@ -39,6 +51,41 @@ class _ContactListState extends State<ContactList> {
     filterContacts();
   }
 
+  Future<void> _syncContactsWithFirestore() async {
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .get();
+
+    if (userDoc.exists) {
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      List<dynamic> firestoreContacts = userData['contacts'] ?? [];
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      List<String> storedContacts = prefs.getStringList('contacts') ?? [];
+
+      List<Map<String, String>> updatedContacts = firestoreContacts
+          .map((contact) {
+            return {
+              'userId': contact['userId'],
+              'nickname': contact['nickname'],
+              'profileImage': contact['profileImage'] ?? '',
+            };
+          })
+          .toList()
+          .cast<Map<String, String>>();
+
+      storedContacts =
+          updatedContacts.map((contact) => jsonEncode(contact)).toList();
+      await prefs.setStringList('contacts', storedContacts);
+
+      setState(() {
+        contacts = updatedContacts;
+        filteredContacts = contacts;
+      });
+    }
+  }
+
   Future<void> _loadContacts() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -48,6 +95,38 @@ class _ContactListState extends State<ContactList> {
           .toList();
       filteredContacts = contacts;
     });
+  }
+
+  Future<void> _checkPendingFriendRequests() async {
+    QuerySnapshot snapshot = await FirebaseFirestore.instance
+        .collection('friendRequests')
+        .where('receiverId', isEqualTo: widget.userId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    setState(() {
+      pendingFriendRequests = snapshot.docs.length;
+    });
+
+    if (pendingFriendRequests > 0) {
+      _showFriendRequestNotification();
+    }
+  }
+
+  void _showFriendRequestNotification() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('You have $pendingFriendRequests new friend request(s)!'),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            _showFriendRequests();
+          },
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
   }
 
   Future<void> _saveContact(
@@ -67,14 +146,41 @@ class _ContactListState extends State<ContactList> {
   }
 
   Future<void> _deleteContact(int index) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      contacts.removeAt(index);
-      List<String> storedContacts =
-          contacts.map((contact) => jsonEncode(contact)).toList();
-      prefs.setStringList('contacts', storedContacts);
-      filteredContacts = contacts;
-    });
+    bool confirmDelete = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Confirm Deletion'),
+          content: Text('Are you sure you want to delete this contact?'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: Text('Delete'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      setState(() {
+        String deletedUserId = filteredContacts[index]['userId']!;
+        contacts.removeWhere((contact) => contact['userId'] == deletedUserId);
+        filteredContacts.removeAt(index);
+        List<String> storedContacts =
+            contacts.map((contact) => jsonEncode(contact)).toList();
+        prefs.setStringList('contacts', storedContacts);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Contact removed from your list')),
+      );
+    }
   }
 
   Future<void> _deleteAccount() async {
@@ -114,18 +220,16 @@ class _ContactListState extends State<ContactList> {
               },
             ),
             ElevatedButton(
-              child: const Text('Add'),
+              child: const Text('Send Friend Request'),
               onPressed: () async {
                 String contactName = controller.text.trim();
 
-                // Check if the contact name is the same as the user's nickname
                 if (contactName == widget.nickname) {
                   Navigator.of(context).pop();
                   _showErrorDialog('You cannot add yourself as a contact.');
                   return;
                 }
 
-                // Check if the contact is already in the list
                 bool isDuplicate = contacts
                     .any((contact) => contact['nickname'] == contactName);
                 if (isDuplicate) {
@@ -140,17 +244,98 @@ class _ContactListState extends State<ContactList> {
                     .get();
 
                 if (result.docs.isNotEmpty) {
-                  String userId = result.docs.first.id;
-                  Map<String, dynamic> data =
-                      result.docs.first.data() as Map<String, dynamic>;
-                  String? profileImage = data['profileImage'] as String?;
-                  _saveContact(contactName, userId, profileImage);
+                  String contactUserId = result.docs.first.id;
+                  await _sendFriendRequest(contactUserId, contactName);
+                  await _addContactToSenderList(contactUserId, contactName);
                   Navigator.of(context).pop();
+                  _showSuccessDialog(
+                      'Friend request sent and contact added to your list!');
                 } else {
                   Navigator.of(context).pop();
                   _showErrorDialog(
                       'The contact you are looking for was not found.');
                 }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _sendFriendRequest(
+      String contactUserId, String contactName) async {
+    await FirebaseFirestore.instance.collection('friendRequests').add({
+      'senderId': widget.userId,
+      'senderNickname': widget.nickname,
+      'receiverId': contactUserId,
+      'receiverNickname': contactName,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> _addContactToSenderList(
+      String contactUserId, String contactName) async {
+    // Fetch the contact's profile image
+    DocumentSnapshot contactDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(contactUserId)
+        .get();
+
+    String profileImage = '';
+    if (contactDoc.exists) {
+      Map<String, dynamic> contactData =
+          contactDoc.data() as Map<String, dynamic>;
+      profileImage = contactData['profileImage'] ?? '';
+    }
+
+    // Add to Firestore
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .update({
+      'contacts': FieldValue.arrayUnion([
+        {
+          'userId': contactUserId,
+          'nickname': contactName,
+          'profileImage': profileImage,
+        }
+      ]),
+    });
+
+    // Add to local storage
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> storedContacts = prefs.getStringList('contacts') ?? [];
+
+    Map<String, String> newContact = {
+      'userId': contactUserId,
+      'nickname': contactName,
+      'profileImage': profileImage,
+    };
+
+    storedContacts.add(jsonEncode(newContact));
+    await prefs.setStringList('contacts', storedContacts);
+
+    // Update the state
+    setState(() {
+      contacts.add(newContact);
+      filteredContacts = List.from(contacts);
+    });
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Success'),
+          content: Text(message),
+          actions: <Widget>[
+            ElevatedButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
               },
             ),
           ],
@@ -194,6 +379,19 @@ class _ContactListState extends State<ContactList> {
     });
   }
 
+  void _listenForFriendRequests() {
+    FirebaseFirestore.instance
+        .collection('friendRequests')
+        .where('receiverId', isEqualTo: widget.userId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .listen((snapshot) {
+      setState(() {
+        pendingFriendRequests = snapshot.docs.length;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -223,20 +421,55 @@ class _ContactListState extends State<ContactList> {
               });
             },
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete_account') {
-                _deleteAccount();
-              }
-            },
-            itemBuilder: (BuildContext context) {
-              return [
-                const PopupMenuItem<String>(
-                  value: 'delete_account',
-                  child: Text('Delete Account'),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'delete_account') {
+                    _deleteAccount();
+                  } else if (value == 'friend_requests') {
+                    _showFriendRequests();
+                  }
+                },
+                itemBuilder: (BuildContext context) {
+                  return [
+                    const PopupMenuItem<String>(
+                      value: 'friend_requests',
+                      child: Text('Friend Requests'),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'delete_account',
+                      child: Text('Delete Account'),
+                    ),
+                  ];
+                },
+              ),
+              if (pendingFriendRequests > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '$pendingFriendRequests',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              ];
-            },
+            ],
           ),
         ],
       ),
@@ -299,7 +532,7 @@ class _ContactListState extends State<ContactList> {
                           otherUserNickname: filteredContacts[index]
                               ['nickname']!,
                           otherUserProfileImage: filteredContacts[index]
-                              ['profileImage'], // Add this line
+                              ['profileImage'],
                         ),
                       ),
                     );
@@ -311,5 +544,22 @@ class _ContactListState extends State<ContactList> {
         ],
       ),
     );
+  }
+
+  void _showFriendRequests() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FriendRequestHandler(
+          userId: widget.userId,
+          nickname: widget.nickname,
+        ),
+      ),
+    );
+
+    if (result == true) {
+      // Refresh contacts if changes were made
+      _loadContacts();
+    }
   }
 }
