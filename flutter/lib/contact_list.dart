@@ -9,7 +9,7 @@ class ContactList extends StatefulWidget {
   final String userId;
   final String nickname;
 
-  ContactList({required this.userId, required this.nickname});
+  const ContactList({super.key, required this.userId, required this.nickname});
 
   @override
   _ContactListState createState() => _ContactListState();
@@ -96,14 +96,14 @@ class _ContactListState extends State<ContactList> {
   }
 
   void _addContact() async {
-    TextEditingController _controller = TextEditingController();
+    TextEditingController controller = TextEditingController();
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Add Contact'),
           content: TextField(
-            controller: _controller,
+            controller: controller,
             decoration: const InputDecoration(hintText: "Enter contact name"),
           ),
           actions: <Widget>[
@@ -116,7 +116,7 @@ class _ContactListState extends State<ContactList> {
             ElevatedButton(
               child: const Text('Add'),
               onPressed: () async {
-                String contactName = _controller.text.trim();
+                String contactName = controller.text.trim();
 
                 // Check if the contact name is the same as the user's nickname
                 if (contactName == widget.nickname) {
@@ -180,17 +180,17 @@ class _ContactListState extends State<ContactList> {
   }
 
   void filterContacts() {
-    List<Map<String, String>> _contacts = [];
-    _contacts.addAll(contacts);
+    List<Map<String, String>> contacts = [];
+    contacts.addAll(contacts);
     if (searchController.text.isNotEmpty) {
-      _contacts.retainWhere((contact) {
+      contacts.retainWhere((contact) {
         String searchTerm = searchController.text.toLowerCase();
         String contactName = contact['nickname']!.toLowerCase();
         return contactName.contains(searchTerm);
       });
     }
     setState(() {
-      filteredContacts = _contacts;
+      filteredContacts = contacts;
     });
   }
 
@@ -298,6 +298,8 @@ class _ContactListState extends State<ContactList> {
                           otherUserId: filteredContacts[index]['userId']!,
                           otherUserNickname: filteredContacts[index]
                               ['nickname']!,
+                          otherUserProfileImage: filteredContacts[index]
+                              ['profileImage'], // Add this line
                         ),
                       ),
                     );

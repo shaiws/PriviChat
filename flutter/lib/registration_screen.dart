@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'contact_list.dart';
 
 class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key});
+
   @override
   _RegistrationScreenState createState() => _RegistrationScreenState();
 }
@@ -110,16 +112,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           child: Wrap(
             children: <Widget>[
               ListTile(
-                leading: Icon(Icons.photo_library),
-                title: Text('Photo Library'),
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Photo Library'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickImage(ImageSource.gallery);
                 },
               ),
               ListTile(
-                leading: Icon(Icons.camera_alt),
-                title: Text('Camera'),
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
                 onTap: () {
                   Navigator.of(context).pop();
                   _pickImage(ImageSource.camera);
@@ -161,7 +163,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            Text(
+            const Text(
               'Enter your nickname',
               style: TextStyle(
                 color: Colors.black54,
@@ -185,7 +187,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
             const SizedBox(height: 24),
             if (_isLoading)
-              Center(child: const CircularProgressIndicator())
+              const Center(child: CircularProgressIndicator())
             else
               SizedBox(
                 width: double.infinity,

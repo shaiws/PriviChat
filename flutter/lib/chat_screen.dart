@@ -19,12 +19,15 @@ class ChatScreen extends StatefulWidget {
   final String userId;
   final String otherUserId;
   final String otherUserNickname;
+  final String? otherUserProfileImage; // Add this line
 
-  const ChatScreen(
-      {super.key,
-      required this.userId,
-      required this.otherUserId,
-      required this.otherUserNickname});
+  const ChatScreen({
+    super.key,
+    required this.userId,
+    required this.otherUserId,
+    required this.otherUserNickname,
+    this.otherUserProfileImage, // Add this line
+  });
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -39,8 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isRecording = false;
   FlutterSoundRecorder? _audioRecorder;
   FlutterSoundPlayer? _audioPlayer;
-  Map<int, ChewieController> _chewieControllers = {};
-  Map<int, VideoPlayerController> _videoControllers = {};
+  final Map<int, ChewieController> _chewieControllers = {};
+  final Map<int, VideoPlayerController> _videoControllers = {};
 
   @override
   void initState() {
@@ -487,7 +490,33 @@ class _ChatScreenState extends State<ChatScreen> {
         appBar: AppBar(
           title: Row(
             children: [
-              Text(widget.otherUserNickname),
+              CircleAvatar(
+                backgroundColor: Colors.grey[200],
+                backgroundImage: widget.otherUserProfileImage != null
+                    ? NetworkImage(widget.otherUserProfileImage!)
+                    : null,
+                radius: 20,
+                child: widget.otherUserProfileImage == null
+                    ? Icon(Icons.person, color: Colors.grey[700])
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.otherUserNickname,
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    if (_isOtherUserTyping)
+                      const Text(
+                        'Typing...',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                  ],
+                ),
+              ),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.call),
@@ -503,14 +532,6 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         body: Column(
           children: [
-            if (_isOtherUserTyping)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(
-                  'Typing...',
-                  style: TextStyle(fontStyle: FontStyle.italic),
-                ),
-              ),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -677,7 +698,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> checkAndRequestPermission() async {
-    var status;
+    PermissionStatus status;
     if (Platform.isAndroid) {
       final deviceInfo = DeviceInfoPlugin();
       final androidInfo = await deviceInfo.androidInfo;
