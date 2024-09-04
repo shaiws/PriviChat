@@ -8,8 +8,7 @@ class FriendRequestHandler extends StatefulWidget {
   final String nickname;
 
   const FriendRequestHandler(
-      {Key? key, required this.userId, required this.nickname})
-      : super(key: key);
+      {super.key, required this.userId, required this.nickname});
 
   @override
   _FriendRequestHandlerState createState() => _FriendRequestHandlerState();
@@ -138,7 +137,7 @@ class _FriendRequestHandlerState extends State<FriendRequestHandler> {
           backgroundColor: const Color(0xFF0088CC),
         ),
         body: friendRequests.isEmpty
-            ? Center(child: Text('No pending friend requests'))
+            ? const Center(child: Text('No pending friend requests'))
             : ListView.builder(
                 itemCount: friendRequests.length,
                 itemBuilder: (context, index) {
@@ -154,7 +153,7 @@ class _FriendRequestHandlerState extends State<FriendRequestHandler> {
                           : null,
                     ),
                     title: Text(request['senderNickname']),
-                    subtitle: Text('Wants to add you as a friend'),
+                    subtitle: const Text('Wants to add you as a friend'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

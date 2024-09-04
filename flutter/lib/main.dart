@@ -11,7 +11,7 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: InitialScreen(),
+      home: const InitialScreen(),
     );
   }
 }
@@ -81,7 +81,7 @@ class _InitialScreenState extends State<InitialScreen> {
     } else if (_nickname != null && _userId != null) {
       return ContactList(userId: _userId!, nickname: _nickname!);
     } else {
-      return RegistrationScreen();
+      return const RegistrationScreen();
     }
   }
 }

@@ -124,7 +124,7 @@ class _ContactListState extends State<ContactList> {
             _showFriendRequests();
           },
         ),
-        duration: Duration(seconds: 5),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -150,15 +150,15 @@ class _ContactListState extends State<ContactList> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Confirm Deletion'),
-          content: Text('Are you sure you want to delete this contact?'),
+          title: const Text('Confirm Deletion'),
+          content: const Text('Are you sure you want to delete this contact?'),
           actions: <Widget>[
             TextButton(
-              child: Text('Cancel'),
+              child: const Text('Cancel'),
               onPressed: () => Navigator.of(context).pop(false),
             ),
             TextButton(
-              child: Text('Delete'),
+              child: const Text('Delete'),
               onPressed: () => Navigator.of(context).pop(true),
             ),
           ],
@@ -178,7 +178,7 @@ class _ContactListState extends State<ContactList> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Contact removed from your list')),
+        const SnackBar(content: Text('Contact removed from your list')),
       );
     }
   }
@@ -194,7 +194,7 @@ class _ContactListState extends State<ContactList> {
       await prefs.clear();
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => RegistrationScreen()),
+        MaterialPageRoute(builder: (context) => const RegistrationScreen()),
       );
     } catch (e) {
       print('Error deleting account: $e');
@@ -450,18 +450,18 @@ class _ContactListState extends State<ContactList> {
                   right: 8,
                   top: 8,
                   child: Container(
-                    padding: EdgeInsets.all(2),
+                    padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: Colors.red,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    constraints: BoxConstraints(
+                    constraints: const BoxConstraints(
                       minWidth: 16,
                       minHeight: 16,
                     ),
                     child: Text(
                       '$pendingFriendRequests',
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                       ),
