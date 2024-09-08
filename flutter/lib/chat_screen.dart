@@ -577,14 +577,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.call),
-                onPressed: _startVoiceCall,
-              ),
-              IconButton(
-                icon: const Icon(Icons.videocam),
-                onPressed: _startVideoCall,
-              ),
             ],
           ),
           backgroundColor: const Color(0xFF0088CC),
@@ -733,16 +725,6 @@ class _ChatScreenState extends State<ChatScreen> {
           },
         ) ??
         false;
-  }
-
-  void _startVoiceCall() {
-    // Implement WebRTC voice call initiation here
-    print('Voice call initiated with ${widget.otherUserId}');
-  }
-
-  void _startVideoCall() {
-    // Implement WebRTC video call initiation here
-    print('Video call initiated with ${widget.otherUserId}');
   }
 
   void _showAttachmentMenu() {
