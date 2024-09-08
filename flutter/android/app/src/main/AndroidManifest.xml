@@ -2,7 +2,7 @@
     <application
         android:label="PriviChat"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
             package="com.shaiws.privichat">
         <activity
             android:name=".MainActivity"

@@ -4,6 +4,7 @@ import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 import 'package:mime/mime.dart';
@@ -127,7 +128,8 @@ class _ChatScreenState extends State<ChatScreen> {
             'content': content,
             'isSent': false,
             'isFile': isFile,
-            'fileType': fileType
+            'fileType': fileType,
+            'timestamp': DateTime.now(),
           });
         });
         _scrollToBottom();
@@ -177,9 +179,15 @@ class _ChatScreenState extends State<ChatScreen> {
   void _sendMessage() {
     final message = _messageController.text;
     if (message.isNotEmpty) {
+      final timestamp = DateTime.now(); // Add this line to get the current time
       _chatService.sendMessage(message);
       setState(() {
-        _messages.add({'content': message, 'isSent': true, 'isFile': false});
+        _messages.add({
+          'content': message,
+          'isSent': true,
+          'isFile': false,
+          'timestamp': timestamp, // Include the timestamp
+        });
       });
       _scrollToBottom();
 
@@ -269,7 +277,8 @@ class _ChatScreenState extends State<ChatScreen> {
           'content': fileBytes,
           'isSent': true,
           'isFile': true,
-          'fileType': 'audio/aac'
+          'fileType': 'audio/aac',
+          'timestamp': DateTime.now(), // Add the timestamp here
         });
       });
     } catch (e) {
@@ -299,7 +308,8 @@ class _ChatScreenState extends State<ChatScreen> {
         'content': tempFile.path, // Save the file path instead of the bytes
         'isSent': true,
         'isFile': true,
-        'fileType': fileType
+        'fileType': fileType,
+        'timestamp': DateTime.now(),
       });
     });
   }
@@ -350,30 +360,50 @@ class _ChatScreenState extends State<ChatScreen> {
             bottomLeft: Radius.circular(16),
             bottomRight: Radius.circular(16),
           );
+    DateTime timestamp = messageData['timestamp'];
+    String formattedTime =
+        DateFormat('h:mm a').format(timestamp); // Format the timestamp
 
     return Container(
       alignment: alignment,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: borderRadius,
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              offset: Offset(2, 2),
-              blurRadius: 4,
+      child: Column(
+        crossAxisAlignment:
+            isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: borderRadius,
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  offset: Offset(2, 2),
+                  blurRadius: 4,
+                ),
+              ],
             ),
-          ],
-        ),
-        child: GestureDetector(
-          onLongPress: !isSent && messageData['isFile']
-              ? () => _showSaveDialog(
-                  messageData['content'], messageData['fileType'])
-              : null,
-          child: buildMessageContent(messageData, textColor),
-        ),
+            child: GestureDetector(
+              onLongPress: !isSent && messageData['isFile']
+                  ? () => _showSaveDialog(
+                      messageData['content'], messageData['fileType'])
+                  : null,
+              child: buildMessageContent(messageData, textColor),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 16.0, right: 16.0),
+            child: Text(
+              formattedTime,
+              style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      Colors.grey), // Display the time in a smaller, grey font
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -407,47 +437,48 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget buildMessageContent(
       Map<String, dynamic> messageData, Color textColor) {
-    print("Message data: $messageData");
+    // Safeguard: Ensure fileType is not null
+    String fileType =
+        messageData['fileType'] ?? 'unknown'; // Default to 'unknown'
+
     if (messageData['isFile']) {
-      if (messageData['fileType'].indexOf('image') != -1) {
-        return SizedBox(
-          width: 150,
-          height: 150,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8.0),
-            child: Image.file(
-              File(messageData['content']),
-              fit: BoxFit.cover,
+      if (fileType.indexOf('image') != -1) {
+        // Now safe to use indexOf
+        // Add GestureDetector to make the image pressable
+        return GestureDetector(
+          onTap: () {
+            _showImageModal(messageData['content']); // Show image in a modal
+          },
+          child: SizedBox(
+            width: 150,
+            height: 150,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8.0),
+              child: Image.file(
+                File(messageData['content']),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         );
-      } else if (messageData['fileType'].indexOf('audio') != -1) {
+      } else if (fileType.indexOf('audio') != -1) {
+        // Handle audio files
         return IconButton(
           icon: const Icon(Icons.play_arrow, color: Colors.white),
           onPressed: () async {
             try {
               await _audioPlayer!.startPlayer(
-                fromURI: messageData['content'],
-                codec: Codec.aacADTS,
-              );
+                  fromURI: messageData['content'], codec: Codec.aacADTS);
             } catch (e) {
-              try {
-                await _audioPlayer!.startPlayer(
-                  fromDataBuffer: messageData['content'],
-                  codec: Codec.aacADTS,
-                );
-              } catch (e) {
-                print("An error occurred while playing the audio file: $e");
-              }
+              print("An error occurred while playing the audio file: $e");
             }
           },
         );
-      } else if (messageData['fileType'].indexOf('mp4') != -1) {
+      } else if (fileType.indexOf('video') != -1) {
         int index = _messages.indexOf(messageData);
         if (_videoControllers[index] == null) {
-          _videoControllers[index] = VideoPlayerController.file(
-            File(messageData['content']),
-          );
+          _videoControllers[index] =
+              VideoPlayerController.file(File(messageData['content']));
           _chewieControllers[index] = ChewieController(
             videoPlayerController: _videoControllers[index]!,
             autoPlay: false,
@@ -455,25 +486,49 @@ class _ChatScreenState extends State<ChatScreen> {
             allowMuting: true,
           );
         }
-
         return SizedBox(
           width: 200, // Set the desired width
           height: 200, // Set the desired height
           child: Chewie(controller: _chewieControllers[index]!),
         );
       } else {
+        // Handle other file types (e.g., unknown or documents)
         return ListTile(
           leading: const Icon(Icons.insert_drive_file, color: Colors.white),
-          title:
-              Text(messageData['fileType'], style: TextStyle(color: textColor)),
+          title: Text(fileType, style: TextStyle(color: textColor)),
         );
       }
     } else {
+      // Text message
       return SelectableText(
         messageData['content'],
         style: TextStyle(fontSize: 16, color: textColor),
       );
     }
+  }
+
+  void _showImageModal(String imagePath) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.all(10),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10.0),
+            child: InteractiveViewer(
+              panEnabled: true, // Enable panning
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Image.file(
+                File(imagePath),
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -490,15 +545,19 @@ class _ChatScreenState extends State<ChatScreen> {
         appBar: AppBar(
           title: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: Colors.grey[200],
-                backgroundImage: widget.otherUserProfileImage != null
-                    ? NetworkImage(widget.otherUserProfileImage!)
-                    : null,
-                radius: 20,
-                child: widget.otherUserProfileImage == null
-                    ? Icon(Icons.person, color: Colors.grey[700])
-                    : null,
+              GestureDetector(
+                onTap:
+                    _showUserProfileModal, // When tapped, show the user profile modal
+                child: CircleAvatar(
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage: widget.otherUserProfileImage != null
+                      ? NetworkImage(widget.otherUserProfileImage!)
+                      : null,
+                  radius: 20,
+                  child: widget.otherUserProfileImage == null
+                      ? Icon(Icons.person, color: Colors.grey[700])
+                      : null,
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -595,6 +654,56 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showUserProfileModal() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage: widget.otherUserProfileImage != null
+                      ? NetworkImage(widget.otherUserProfileImage!)
+                      : null,
+                  child: widget.otherUserProfileImage == null
+                      ? Icon(Icons.person, color: Colors.grey[700], size: 50)
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  widget.otherUserNickname,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Add any other user info here, like bio, status, etc.
+
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close the modal
+                  },
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
