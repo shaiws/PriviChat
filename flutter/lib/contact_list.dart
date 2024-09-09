@@ -570,6 +570,7 @@ class _ContactListState extends State<ContactList> {
                                 ['nickname']!,
                             otherUserProfileImage: filteredContacts[index]
                                 ['profileImage'],
+                            isDarkMode: isDarkMode,
                           ),
                         ),
                       );
@@ -591,6 +592,7 @@ class _ContactListState extends State<ContactList> {
         builder: (context) => FriendRequestHandler(
           userId: widget.userId,
           nickname: widget.nickname,
+          isDarkMode: isDarkMode,
         ),
       ),
     );

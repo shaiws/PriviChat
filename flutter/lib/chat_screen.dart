@@ -22,6 +22,7 @@ class ChatScreen extends StatefulWidget {
   final String otherUserId;
   final String otherUserNickname;
   final String? otherUserProfileImage; // Add this line
+  final bool isDarkMode; // Add this line
 
   const ChatScreen({
     super.key,
@@ -29,6 +30,7 @@ class ChatScreen extends StatefulWidget {
     required this.otherUserId,
     required this.otherUserNickname,
     this.otherUserProfileImage, // Add this line
+    required this.isDarkMode, // Add this line
   });
 
   @override
@@ -259,10 +261,8 @@ class _ChatScreenState extends State<ChatScreen> {
         final Uint8List fileBytes = await audioFile.readAsBytes();
         if (fileBytes.isNotEmpty) {
           _sendAudioFile(fileBytes);
-        } else {
-        }
-      } else {
-      }
+        } else {}
+      } else {}
     }
   }
 
@@ -278,9 +278,7 @@ class _ChatScreenState extends State<ChatScreen> {
           'timestamp': DateTime.now(), // Add the timestamp here
         });
       });
-    } catch (e) {
-
-    }
+    } catch (e) {}
   }
 
   Future<void> _sendFile(XFile file) async {
@@ -393,8 +391,11 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildMessageBubble(Map<String, dynamic> messageData) {
     bool isSent = messageData['isSent'];
     Alignment alignment = isSent ? Alignment.centerRight : Alignment.centerLeft;
-    Color color = isSent ? const Color(0xFF0088CC) : const Color(0xFFE5E5EA);
-    Color textColor = isSent ? Colors.white : Colors.black87;
+    Color color = isSent
+        ? (widget.isDarkMode ? Colors.blue[700]! : const Color(0xFF0088CC))
+        : (widget.isDarkMode ? Colors.grey[700]! : const Color(0xFFE5E5EA));
+    Color textColor =
+        isSent || widget.isDarkMode ? Colors.white : Colors.black87;
     BorderRadius borderRadius = isSent
         ? const BorderRadius.only(
             topLeft: Radius.circular(16),
@@ -407,8 +408,7 @@ class _ChatScreenState extends State<ChatScreen> {
             bottomRight: Radius.circular(16),
           );
     DateTime timestamp = messageData['timestamp'];
-    String formattedTime =
-        DateFormat('h:mm a').format(timestamp); // Format the timestamp
+    String formattedTime = DateFormat('h:mm a').format(timestamp);
 
     return Container(
       alignment: alignment,
@@ -423,10 +423,10 @@ class _ChatScreenState extends State<ChatScreen> {
             decoration: BoxDecoration(
               color: color,
               borderRadius: borderRadius,
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black12,
-                  offset: Offset(2, 2),
+                  color: widget.isDarkMode ? Colors.black26 : Colors.black12,
+                  offset: const Offset(2, 2),
                   blurRadius: 4,
                 ),
               ],
@@ -443,10 +443,10 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.only(left: 16.0, right: 16.0),
             child: Text(
               formattedTime,
-              style: const TextStyle(
-                  fontSize: 12,
-                  color:
-                      Colors.grey), // Display the time in a smaller, grey font
+              style: TextStyle(
+                fontSize: 12,
+                color: widget.isDarkMode ? Colors.grey[400] : Colors.grey[600],
+              ),
             ),
           ),
         ],
@@ -515,8 +515,7 @@ class _ChatScreenState extends State<ChatScreen> {
             try {
               await _audioPlayer!.startPlayer(
                   fromURI: messageData['content'], codec: Codec.aacADTS);
-            } catch (e) {
-            }
+            } catch (e) {}
           },
         );
       } else if (fileType.contains('video')) {
@@ -578,117 +577,146 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        final shouldExit = await _showExitConfirmation();
-        if (shouldExit) {
-          await _deleteTemporaryMedia();
-        }
-        return shouldExit;
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Row(
-            children: [
-              GestureDetector(
-                onTap:
-                    _showUserProfileModal, // When tapped, show the user profile modal
-                child: CircleAvatar(
-                  backgroundColor: Colors.grey[200],
-                  backgroundImage: widget.otherUserProfileImage != null
-                      ? NetworkImage(widget.otherUserProfileImage!)
-                      : null,
-                  radius: 20,
-                  child: widget.otherUserProfileImage == null
-                      ? Icon(Icons.person, color: Colors.grey[700])
-                      : null,
+    return Theme(
+      data: widget.isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      child: WillPopScope(
+        onWillPop: () async {
+          final shouldExit = await _showExitConfirmation();
+          if (shouldExit) {
+            await _deleteTemporaryMedia();
+          }
+          return shouldExit;
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
+              children: [
+                GestureDetector(
+                  onTap: _showUserProfileModal,
+                  child: CircleAvatar(
+                    backgroundColor:
+                        widget.isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                    backgroundImage: widget.otherUserProfileImage != null
+                        ? NetworkImage(widget.otherUserProfileImage!)
+                        : null,
+                    radius: 20,
+                    child: widget.otherUserProfileImage == null
+                        ? Icon(Icons.person,
+                            color: widget.isDarkMode
+                                ? Colors.grey[300]
+                                : Colors.grey[700])
+                        : null,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.otherUserNickname,
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                    if (_isOtherUserTyping)
-                      const Text(
-                        'Typing...',
-                        style: TextStyle(fontSize: 12),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.otherUserNickname,
+                        style: const TextStyle(fontSize: 16),
                       ),
-                  ],
+                      if (_isOtherUserTyping)
+                        const Text(
+                          'Typing...',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const Spacer(),
-            ],
-          ),
-          backgroundColor: const Color(0xFF0088CC),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  return _buildMessageBubble(_messages[index]);
-                },
-              ),
+                const Spacer(),
+              ],
             ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxHeight:
-                            150, // Set a maximum height for the input field
-                      ),
-                      child: Scrollbar(
-                        child: TextField(
-                          controller: _messageController,
-                          onChanged: _onMessageChanged,
-                          maxLines: null, // Allow unlimited lines
-                          decoration: InputDecoration(
-                            hintText: 'Type a message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
+            backgroundColor:
+                widget.isDarkMode ? Colors.grey[900] : const Color(0xFF0088CC),
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    return _buildMessageBubble(_messages[index]);
+                  },
+                ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxHeight: 150,
+                        ),
+                        child: Scrollbar(
+                          child: TextField(
+                            controller: _messageController,
+                            onChanged: _onMessageChanged,
+                            maxLines: null,
+                            style: TextStyle(
+                                color: widget.isDarkMode
+                                    ? Colors.white
+                                    : Colors.black),
+                            decoration: InputDecoration(
+                              hintText: 'Type a message...',
+                              hintStyle: TextStyle(
+                                  color: widget.isDarkMode
+                                      ? Colors.grey[400]
+                                      : Colors.grey[600]),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(
+                                    color: widget.isDarkMode
+                                        ? Colors.grey[600]!
+                                        : Colors.grey[300]!),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              fillColor: widget.isDarkMode
+                                  ? Colors.grey[800]
+                                  : Colors.white,
+                              filled: true,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  IconButton(
-                    icon: const Icon(Icons.attach_file),
-                    color: const Color(0xFF0088CC),
-                    onPressed: _showAttachmentMenu,
-                  ),
-                  const SizedBox(width: 8.0),
-                  IconButton(
-                    icon: _isRecording
-                        ? const Icon(Icons.stop)
-                        : const Icon(Icons.mic),
-                    color: const Color(0xFF0088CC),
-                    onPressed: _isRecording ? _stopRecording : _startRecording,
-                  ),
-                  const SizedBox(width: 8.0),
-                  IconButton(
-                    icon: const Icon(Icons.send),
-                    color: const Color(0xFF0088CC),
-                    onPressed: _sendMessage,
-                  ),
-                ],
+                    const SizedBox(width: 8.0),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file),
+                      color: widget.isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF0088CC),
+                      onPressed: _showAttachmentMenu,
+                    ),
+                    const SizedBox(width: 8.0),
+                    IconButton(
+                      icon: _isRecording
+                          ? const Icon(Icons.stop)
+                          : const Icon(Icons.mic),
+                      color: widget.isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF0088CC),
+                      onPressed:
+                          _isRecording ? _stopRecording : _startRecording,
+                    ),
+                    const SizedBox(width: 8.0),
+                    IconButton(
+                      icon: const Icon(Icons.send),
+                      color: widget.isDarkMode
+                          ? Colors.white
+                          : const Color(0xFF0088CC),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -698,45 +726,52 @@ class _ChatScreenState extends State<ChatScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20.0),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey[200],
-                  backgroundImage: widget.otherUserProfileImage != null
-                      ? NetworkImage(widget.otherUserProfileImage!)
-                      : null,
-                  child: widget.otherUserProfileImage == null
-                      ? Icon(Icons.person, color: Colors.grey[700], size: 50)
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  widget.otherUserNickname,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+        return Theme(
+          data: widget.isDarkMode ? ThemeData.dark() : ThemeData.light(),
+          child: Dialog(
+            backgroundColor:
+                widget.isDarkMode ? Colors.grey[800] : Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20.0),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor:
+                        widget.isDarkMode ? Colors.grey[700] : Colors.grey[200],
+                    backgroundImage: widget.otherUserProfileImage != null
+                        ? NetworkImage(widget.otherUserProfileImage!)
+                        : null,
+                    child: widget.otherUserProfileImage == null
+                        ? Icon(Icons.person,
+                            color: widget.isDarkMode
+                                ? Colors.grey[300]
+                                : Colors.grey[700],
+                            size: 50)
+                        : null,
                   ),
-                ),
-                const SizedBox(height: 10),
-                // Add any other user info here, like bio, status, etc.
-
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Close the modal
-                  },
-                  child: const Text('Close'),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.otherUserNickname,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDarkMode ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Close'),
+                  ),
+                ],
+              ),
             ),
           ),
         );
