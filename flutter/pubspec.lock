@@ -680,6 +680,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.11.1"
+  media_store_plus:
+    dependency: "direct main"
+    description:
+      name: media_store_plus
+      sha256: "474296cc180c27c828963cbde2e552241521141dc7f59e84e1c13e6cd170f119"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.2"
   meta:
     dependency: transitive
     description:

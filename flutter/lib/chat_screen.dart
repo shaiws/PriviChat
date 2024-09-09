@@ -4,14 +4,15 @@ import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:intl/intl.dart';
+import 'package:media_store_plus/media_store_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:video_player/video_player.dart';
 import 'package:mime/mime.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:image_gallery_saver/image_gallery_saver.dart';
 import 'package:audio_session/audio_session.dart'; // Add this import
 
 import 'webrtc_chat_service.dart';
@@ -216,7 +217,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (await Permission.microphone.isGranted) {
       final directory = await getApplicationDocumentsDirectory();
       String filePath = '${directory.path}/audio.aac';
-      print("File path: $filePath");
       // Ensure the FlutterSoundRecorder is initialized
       if (_audioRecorder == null) {
         _audioRecorder = FlutterSoundRecorder();
@@ -248,7 +248,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final filePath = await _audioRecorder!.stopRecorder();
-    print("Recorded file path: $filePath");
     setState(() {
       _isRecording = false;
     });
@@ -261,10 +260,8 @@ class _ChatScreenState extends State<ChatScreen> {
         if (fileBytes.isNotEmpty) {
           _sendAudioFile(fileBytes);
         } else {
-          print("Recorded file is empty.");
         }
       } else {
-        print("Audio file does not exist at path: $filePath");
       }
     }
   }
@@ -282,7 +279,7 @@ class _ChatScreenState extends State<ChatScreen> {
         });
       });
     } catch (e) {
-      print("An error occurred while sending the audio file: $e");
+
     }
   }
 
@@ -299,10 +296,8 @@ class _ChatScreenState extends State<ChatScreen> {
         File('${tempDir.path}/$timestamp.${mimeType?.split('/')[1] ?? 'tmp'}');
     await tempFile.writeAsBytes(fileBytes);
 
-    print("File type: $fileType");
     _chatService.sendFile(
         fileBytes); // Ensure _chatService.sendFile can handle the data
-    print("File size: ${fileBytes.length} bytes");
     setState(() {
       _messages.add({
         'content': tempFile.path, // Save the file path instead of the bytes
@@ -315,32 +310,83 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _downloadFile(String filePath, String fileType) async {
-    if (await Permission.storage.request().isGranted) {
+    if (Platform.isAndroid) {
+      final mediaStore = MediaStore();
+      await MediaStore.ensureInitialized();
+      MediaStore.appFolder = 'PriviChat';
+
+      // Set directory type and extension based on the file type
+      DirType dirType;
+      DirName dirName;
+
       if (fileType.contains('image')) {
-        final result = await ImageGallerySaver.saveFile(filePath,
-            name: "PriviChat_${DateTime.now().millisecondsSinceEpoch}");
-        if (result['isSuccess']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Image saved to gallery')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save image')),
-          );
-        }
+        dirType = DirType.photo;
+        dirName = DirName.pictures;
       } else if (fileType.contains('video')) {
-        final result = await ImageGallerySaver.saveFile(filePath,
-            name: "PriviChat_${DateTime.now().millisecondsSinceEpoch}");
-        if (result['isSuccess']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Video saved to gallery')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to save video')),
-          );
+        dirType = DirType.video;
+        dirName = DirName.movies;
+      } else if (fileType.contains('audio')) {
+        dirType = DirType.audio;
+        dirName = DirName.music;
+      } else {
+        // Handle unsupported file types
+        throw Exception('Unsupported file type');
+      }
+
+      // Save the file to the specified directory
+      SaveInfo? info = await mediaStore.saveFile(
+        tempFilePath: filePath,
+        dirType: dirType,
+        dirName: dirName,
+      );
+
+      if (info != null) {
+        // Handle success, e.g., show a success message
+        _handleSaveResult(info.name, fileType);
+      } else {
+        // Handle failure, e.g., show an error message
+        _handleSaveResult(null, fileType);
+      }
+    } else if (Platform.isIOS) {
+      if (await Permission.storage.request().isGranted) {
+        if (fileType.contains('image')) {
+          final result = await ImageGallerySaver.saveFile(filePath,
+              name: "PriviChat_${DateTime.now().millisecondsSinceEpoch}");
+          if (result['isSuccess']) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Image saved to gallery')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save image')),
+            );
+          }
+        } else if (fileType.contains('video')) {
+          final result = await ImageGallerySaver.saveFile(filePath,
+              name: "PriviChat_${DateTime.now().millisecondsSinceEpoch}");
+          if (result['isSuccess']) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Video saved to gallery')),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Failed to save video')),
+            );
+          }
         }
       }
+    }
+  }
+
+  void _handleSaveResult(String? savePath, String fileType) {
+    if (savePath != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$fileType saved as $savePath')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save $fileType')),
+      );
     }
   }
 
@@ -397,7 +443,7 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.only(left: 16.0, right: 16.0),
             child: Text(
               formattedTime,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 12,
                   color:
                       Colors.grey), // Display the time in a smaller, grey font
@@ -442,7 +488,7 @@ class _ChatScreenState extends State<ChatScreen> {
         messageData['fileType'] ?? 'unknown'; // Default to 'unknown'
 
     if (messageData['isFile']) {
-      if (fileType.indexOf('image') != -1) {
+      if (fileType.contains('image')) {
         // Now safe to use indexOf
         // Add GestureDetector to make the image pressable
         return GestureDetector(
@@ -461,7 +507,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         );
-      } else if (fileType.indexOf('audio') != -1) {
+      } else if (fileType.contains('audio')) {
         // Handle audio files
         return IconButton(
           icon: const Icon(Icons.play_arrow, color: Colors.white),
@@ -470,11 +516,10 @@ class _ChatScreenState extends State<ChatScreen> {
               await _audioPlayer!.startPlayer(
                   fromURI: messageData['content'], codec: Codec.aacADTS);
             } catch (e) {
-              print("An error occurred while playing the audio file: $e");
             }
           },
         );
-      } else if (fileType.indexOf('video') != -1) {
+      } else if (fileType.contains('video')) {
         int index = _messages.indexOf(messageData);
         if (_videoControllers[index] == null) {
           _videoControllers[index] =
@@ -513,7 +558,7 @@ class _ChatScreenState extends State<ChatScreen> {
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: EdgeInsets.all(10),
+          insetPadding: const EdgeInsets.all(10),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(10.0),
             child: InteractiveViewer(
@@ -800,13 +845,11 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (status != PermissionStatus.granted) {
-        print("Permission denied.");
         return;
       }
     } else if (Platform.isIOS || Platform.isMacOS) {
       status = await Permission.photos.request();
       if (status != PermissionStatus.granted) {
-        print("Permission denied.");
         return;
       }
     }
@@ -814,7 +857,6 @@ class _ChatScreenState extends State<ChatScreen> {
     // Request microphone permission
     status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) {
-      print("Microphone permission denied");
       return;
     }
   }

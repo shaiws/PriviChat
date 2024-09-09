@@ -90,7 +90,6 @@ class WebRTCChatService {
             Uint8List decompressedBytes = decompressFile(_receivedFileBuffer);
             onMessageReceived?.call(decompressedBytes);
           } catch (e) {
-            print("Error decompressing file: $e");
           }
           _receivedFileBuffer = Uint8List(0); // Reset buffer
         } else if (receivedBytes[0] == 1 || receivedBytes[0] == 0) {
@@ -122,7 +121,6 @@ class WebRTCChatService {
         // Send EOF marker
         await sendEOFIndicator();
       } catch (e) {
-        print("Error sending file: $e");
         _showToast("Error sending file", Colors.red);
       }
     } else {
@@ -251,7 +249,6 @@ class WebRTCChatService {
   }
 
   void closeConnection() {
-    print("Closing connection");
     firestore.collection('rooms').doc(remoteId).delete();
     _peerConnection.close();
     _dataChannel.close();

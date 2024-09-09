@@ -22,6 +22,7 @@ class _ContactListState extends State<ContactList> {
   bool isSearching = false;
   TextEditingController searchController = TextEditingController();
   bool isLoading = true;
+  bool isDarkMode = false;
 
   int pendingFriendRequests = 0;
 
@@ -34,6 +35,8 @@ class _ContactListState extends State<ContactList> {
   Future<void> _initialize() async {
     await _loadContacts();
     await _checkPendingFriendRequests();
+    await _loadThemePreference();
+
     _listenForFriendRequests();
     setState(() {
       isLoading = false;
@@ -49,6 +52,21 @@ class _ContactListState extends State<ContactList> {
 
   void _onSearchChanged() {
     filterContacts();
+  }
+
+  Future<void> _loadThemePreference() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    });
+  }
+
+  Future<void> _toggleTheme() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isDarkMode = !isDarkMode;
+      prefs.setBool('isDarkMode', isDarkMode);
+    });
   }
 
   Future<void> _syncContactsWithFirestore() async {
@@ -394,154 +412,174 @@ class _ContactListState extends State<ContactList> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: isSearching
-            ? TextField(
-                controller: searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Search contacts...',
-                  border: InputBorder.none,
-                ),
-                style: const TextStyle(color: Colors.white, fontSize: 16.0),
-              )
-            : const Text('Contact List'),
-        backgroundColor: const Color(0xFF0088CC),
-        actions: [
-          IconButton(
-            icon: Icon(isSearching ? Icons.close : Icons.search),
-            onPressed: () {
-              setState(() {
-                isSearching = !isSearching;
-                if (!isSearching) {
-                  searchController.clear();
-                  filteredContacts = contacts;
-                }
-              });
-            },
-          ),
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'delete_account') {
-                    _deleteAccount();
-                  } else if (value == 'friend_requests') {
-                    _showFriendRequests();
+    return Theme(
+      data: isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: isSearching
+              ? TextField(
+                  controller: searchController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Search contacts...',
+                    border: InputBorder.none,
+                  ),
+                  style: TextStyle(
+                      color: isDarkMode ? Colors.white : Colors.black,
+                      fontSize: 16.0),
+                )
+              : const Text('Contact List'),
+          backgroundColor:
+              isDarkMode ? Colors.grey[900] : const Color(0xFF0088CC),
+          actions: [
+            IconButton(
+              icon: Icon(isSearching ? Icons.close : Icons.search),
+              onPressed: () {
+                setState(() {
+                  isSearching = !isSearching;
+                  if (!isSearching) {
+                    searchController.clear();
+                    filteredContacts = contacts;
                   }
-                },
-                itemBuilder: (BuildContext context) {
-                  return [
-                    const PopupMenuItem<String>(
-                      value: 'friend_requests',
-                      child: Text('Friend Requests'),
-                    ),
-                    const PopupMenuItem<String>(
-                      value: 'delete_account',
-                      child: Text('Delete Account'),
-                    ),
-                  ];
-                },
-              ),
-              if (pendingFriendRequests > 0)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$pendingFriendRequests',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Hello, ${widget.nickname}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black54,
-                  ),
-                ),
-                FloatingActionButton(
-                  onPressed: _addContact,
-                  backgroundColor: const Color(0xFF0088CC),
-                  child: const Icon(Icons.add),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredContacts.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.grey[200],
-                    backgroundImage: filteredContacts[index]['profileImage']!
-                            .isNotEmpty
-                        ? NetworkImage(filteredContacts[index]['profileImage']!)
-                        : null,
-                    radius: 25,
-                    child: filteredContacts[index]['profileImage']!.isEmpty
-                        ? Icon(Icons.person, color: Colors.grey[700])
-                        : null,
-                  ),
-                  title: Text(
-                    filteredContacts[index]['nickname']!,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete),
-                    onPressed: () {
-                      _deleteContact(index);
-                    },
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatScreen(
-                          userId: widget.userId,
-                          otherUserId: filteredContacts[index]['userId']!,
-                          otherUserNickname: filteredContacts[index]
-                              ['nickname']!,
-                          otherUserProfileImage: filteredContacts[index]
-                              ['profileImage'],
-                        ),
-                      ),
-                    );
-                  },
-                );
+                });
               },
             ),
-          ),
-        ],
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'delete_account') {
+                      _deleteAccount();
+                    } else if (value == 'friend_requests') {
+                      _showFriendRequests();
+                    } else if (value == 'toggle_theme') {
+                      _toggleTheme();
+                    }
+                  },
+                  itemBuilder: (BuildContext context) {
+                    return [
+                      const PopupMenuItem<String>(
+                        value: 'friend_requests',
+                        child: Text('Friend Requests'),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'toggle_theme',
+                        child: Text(isDarkMode
+                            ? 'Switch to Light Mode'
+                            : 'Switch to Dark Mode'),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete_account',
+                        child: Text('Delete Account'),
+                      ),
+                    ];
+                  },
+                ),
+                if (pendingFriendRequests > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$pendingFriendRequests',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Hello, ${widget.nickname}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                  FloatingActionButton(
+                    onPressed: _addContact,
+                    backgroundColor:
+                        isDarkMode ? Colors.blue[700] : const Color(0xFF0088CC),
+                    child: const Icon(Icons.add),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: filteredContacts.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                      backgroundImage:
+                          filteredContacts[index]['profileImage']!.isNotEmpty
+                              ? NetworkImage(
+                                  filteredContacts[index]['profileImage']!)
+                              : null,
+                      radius: 25,
+                      child: filteredContacts[index]['profileImage']!.isEmpty
+                          ? Icon(Icons.person,
+                              color: isDarkMode
+                                  ? Colors.grey[300]
+                                  : Colors.grey[700])
+                          : null,
+                    ),
+                    title: Text(
+                      filteredContacts[index]['nickname']!,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete),
+                      onPressed: () {
+                        _deleteContact(index);
+                      },
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatScreen(
+                            userId: widget.userId,
+                            otherUserId: filteredContacts[index]['userId']!,
+                            otherUserNickname: filteredContacts[index]
+                                ['nickname']!,
+                            otherUserProfileImage: filteredContacts[index]
+                                ['profileImage'],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

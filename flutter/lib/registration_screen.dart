@@ -97,7 +97,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   )));
     } catch (e) {
       setState(() {
-        print(e);
         _isLoading = false;
         _errorMessage = 'An error occurred. Please try again.';
       });
