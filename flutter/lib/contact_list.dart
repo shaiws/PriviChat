@@ -164,6 +164,7 @@ class _ContactListState extends State<ContactList> {
   }
 
   Future<void> _deleteContact(int index) async {
+    // Show a confirmation dialog before deletion
     bool confirmDelete = await showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -185,19 +186,34 @@ class _ContactListState extends State<ContactList> {
     );
 
     if (confirmDelete == true) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      setState(() {
-        String deletedUserId = filteredContacts[index]['userId']!;
-        contacts.removeWhere((contact) => contact['userId'] == deletedUserId);
-        filteredContacts.removeAt(index);
-        List<String> storedContacts =
-            contacts.map((contact) => jsonEncode(contact)).toList();
-        prefs.setStringList('contacts', storedContacts);
-      });
+      // Check if the index is valid before trying to delete the contact
+      if (index >= 0 && index < filteredContacts.length) {
+        SharedPreferences prefs = await SharedPreferences.getInstance();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contact removed from your list')),
-      );
+        setState(() {
+          // Get the userId of the contact to be deleted
+          String deletedUserId = filteredContacts[index]['userId']!;
+
+          // Remove the contact from both the contacts and filteredContacts lists
+          contacts.removeWhere((contact) => contact['userId'] == deletedUserId);
+          filteredContacts.removeAt(index);
+
+          // Save updated contacts list to shared preferences
+          List<String> storedContacts =
+              contacts.map((contact) => jsonEncode(contact)).toList();
+          prefs.setStringList('contacts', storedContacts);
+        });
+
+        // Show a snackbar notification after deletion
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Contact removed from your list')),
+        );
+      } else {
+        // Handle the case where the index is invalid (out of range)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid contact index')),
+        );
+      }
     }
   }
 
