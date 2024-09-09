@@ -55,11 +55,6 @@ class _InitialScreenState extends State<InitialScreen> {
           await FirebaseAuth.instance.signInAnonymously();
       String userId = userCredential.user!.uid;
 
-      // await FirebaseFirestore.instance.collection('users').doc(nickname).set({
-      //   'userId': userId,
-      //   'nickname': nickname,
-      // });
-
       setState(() {
         _nickname = nickname;
         _userId = userId;

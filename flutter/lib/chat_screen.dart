@@ -13,7 +13,7 @@ import 'package:mime/mime.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:audio_session/audio_session.dart'; // Add this import
+import 'package:audio_session/audio_session.dart';
 
 import 'webrtc_chat_service.dart';
 
@@ -21,16 +21,16 @@ class ChatScreen extends StatefulWidget {
   final String userId;
   final String otherUserId;
   final String otherUserNickname;
-  final String? otherUserProfileImage; // Add this line
-  final bool isDarkMode; // Add this line
+  final String? otherUserProfileImage;
+  final bool isDarkMode;
 
   const ChatScreen({
     super.key,
     required this.userId,
     required this.otherUserId,
     required this.otherUserNickname,
-    this.otherUserProfileImage, // Add this line
-    required this.isDarkMode, // Add this line
+    this.otherUserProfileImage,
+    required this.isDarkMode,
   });
 
   @override
@@ -182,14 +182,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void _sendMessage() {
     final message = _messageController.text;
     if (message.isNotEmpty) {
-      final timestamp = DateTime.now(); // Add this line to get the current time
+      final timestamp = DateTime.now();
       _chatService.sendMessage(message);
       setState(() {
         _messages.add({
           'content': message,
           'isSent': true,
           'isFile': false,
-          'timestamp': timestamp, // Include the timestamp
+          'timestamp': timestamp,
         });
       });
       _scrollToBottom();
@@ -275,7 +275,7 @@ class _ChatScreenState extends State<ChatScreen> {
           'isSent': true,
           'isFile': true,
           'fileType': 'audio/aac',
-          'timestamp': DateTime.now(), // Add the timestamp here
+          'timestamp': DateTime.now(),
         });
       });
     } catch (e) {}
@@ -489,8 +489,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (messageData['isFile']) {
       if (fileType.contains('image')) {
-        // Now safe to use indexOf
-        // Add GestureDetector to make the image pressable
         return GestureDetector(
           onTap: () {
             _showImageModal(messageData['content']); // Show image in a modal

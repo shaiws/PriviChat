@@ -6,13 +6,13 @@ import 'dart:convert';
 class FriendRequestHandler extends StatefulWidget {
   final String userId;
   final String nickname;
-  final bool isDarkMode; // Add this line
+  final bool isDarkMode;
 
   const FriendRequestHandler({
     super.key,
     required this.userId,
     required this.nickname,
-    required this.isDarkMode, // Add this line
+    required this.isDarkMode,
   });
   @override
   _FriendRequestHandlerState createState() => _FriendRequestHandlerState();
