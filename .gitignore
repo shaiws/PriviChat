@@ -12,3 +12,5 @@ flutter/firebase.json
 code\ only/*
 
 *zip
+
+*.DS_Store

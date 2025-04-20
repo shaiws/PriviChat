@@ -11,11 +11,16 @@ PriviChat is an innovative mobile application designed for those who value priva
 - **Self-Destructing Messages**: Set messages to automatically delete after reading
 - **Offline Capabilities**: Work without internet connection when needed
 
-## 📱 Installation
+## 🛠️ Development Setup
 
-1. Download PriviChat from the [App Store](link-to-app-store) or [Google Play](link-to-play-store)
-2. Create your secure account
-3. Start connecting with friends and family
+PriviChat is currently in active development. To set up the development environment:
+
+1. Clone the repository
+2. Install dependencies
+3. Run the development server
+4. Build for testing
+
+For detailed setup instructions, please refer to our [Characterization Document](./Characterization%20Document%20-%20by%20Shai%20Michaeli.pdf)
 
 ## 🔒 Security Features
 
@@ -36,20 +41,6 @@ PriviChat is an innovative mobile application designed for those who value priva
 
 For detailed documentation, please refer to our [Characterization Document](./Characterization%20Document%20-%20by%20Shai%20Michaeli.pdf)
 
-## 🤝 Contributing
-
-We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For support, please contact us at [support@privichat.com](mailto:support@privichat.com)
-
 ## 🙏 Acknowledgments
 
-- Thanks to all our contributors
-- Special thanks to the open-source community
-- Inspired by the need for private communication in the digital age
+This project was developed as a final project for the Computer Science degree at the Academic College of Tel Aviv-Yaffo.
