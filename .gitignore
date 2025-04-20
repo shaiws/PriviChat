@@ -8,3 +8,7 @@ flutter/macos/Runner/GoogleService-Info.plist
 
 flutter/lib/firebase_options.dart
 flutter/firebase.json
+
+code\ only/*
+
+*zip
